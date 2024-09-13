@@ -16,9 +16,30 @@
 
 
 
+/////// SETTINGS ///////////////////////////
+
 #define DEBUG 1
 
+#define BRIGHTNESS 100
+#define BUTTON_COLOR pixels.Color(255, 80, 5)
+
+#define BUTTON_UPDATE_RATE 40
+#define MOTOR_UPDATE_RATE 400   // for now to prevent too quick changes
+
+#define MIN_MOTOR_SPEED 118
+#define MAX_MOTOR_SPEED 170
+
+uint8_t midiNotes[4][4] = {{36,37,38,39}, 
+                           {40,41,42,43}, 
+                           {44,45,46,47}, 
+                           {48,49,50,51}};
+
+
+
+
+
 ////////////////////////////////////////////
+
 #if DEBUG == 1
 #define debug(x) Serial.print(x)
 #define debug2(x,y) Serial.print(x,y)
@@ -30,10 +51,13 @@
 #define debugln(x)
 #define debug2ln(x,y)
 #endif
+
 ////////////////////////////////////////////
 
 
+
 ////////////////// I2C Device Adresses //////
+
 #define TCA_ADDR 0x27
 #define ENCODER_ADDR  0x36
 #define MCP_ADDR 0x60
@@ -42,14 +66,10 @@
 #define PIXEL2_ADDR 0x72
 #define PIXEL3_ADDR 0x73
 #define PIXEL4_ADDR 0x74
-/////////////////////////////////////////////
 
 
-#define BUTTON_UPDATE_RATE 40
-#define MOTOR_UPDATE_RATE 400   // for now to prevent too quick changes
 
-#define MIN_MOTOR_SPEED 118
-#define MAX_MOTOR_SPEED 170
+////////////////// PINOUTS //////////////////
 
 #define MIDI_TX_PIN 4
 
@@ -74,21 +94,13 @@
 
 #define NEOPIXEL_PIN  21 
 #define NUMPIXELS 28 
-#define BRIGHTNESS 100
-#define BUTTON_COLOR pixels.Color(255, 80, 5)
 
 #define ENCODER_SWITCH        24
 #define CONFIG_ENCODER0_A_PIN 9 //TODO: VERIFY THIS HACK
 #define CONFIG_ENCODER0_B_PIN 8
 
 
-
 ////////////////////////////////////////////////////////
-
-uint8_t midiNotes[4][4] = {{36,37,38,39}, 
-                           {40,41,42,43}, 
-                           {44,45,46,47}, 
-                           {48,49,50,51}};
 
 
 typedef struct {
@@ -104,27 +116,18 @@ typedef struct {
 } hsv;
 
 
-
-hsv hsv_color;
-rgb rgb_color;
-
-
-
+////////////////////////////////////////////////////////
 
 
 Adafruit_7segment display = Adafruit_7segment();
 Adafruit_seesaw encoder;
 Adafruit_MCP4728 mcp;
 TCA9535 TCA(TCA_ADDR);
-
 TCA9544A pixel1(Wire);
 TCA9544A pixel2(Wire);
 TCA9544A pixel3(Wire);
 TCA9544A pixel4(Wire);
-
 VEML6040 RGBWSensor;
-
-
 Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 
@@ -132,11 +135,13 @@ Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 #define PIN_SERIAL2_TX (4u)
 #define PIN_SERIAL2_RX (5u)
 
-
 // USB MIDI object
 Adafruit_USBD_MIDI usb_midi;
 MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI_USB);
-MIDI_CREATE_INSTANCE(HardwareSerial, Serial1, MIDI)  // USB HOST IO via UART PIN 4/5
+MIDI_CREATE_INSTANCE(HardwareSerial, Serial2, MIDI)  // USB HOST IO via UART PIN 4/5
+
+
+
 
 
 void handleControlChange(byte channel, byte number, byte value)   // For Remote Control via Browser/Midi-CC Input
@@ -146,12 +151,8 @@ void handleControlChange(byte channel, byte number, byte value)   // For Remote 
   }
 }
 
+
 ////////////////////////////////////////////////////////
-
-
-
-
-
 
 bool trackIsOn[4]={1,1,1,1};
 bool motorIsOn = false;
@@ -159,16 +160,34 @@ int currentMotorSpeed = 0;
 int targetMotorSpeed = 0;
 int32_t encoder_position;
 bool hallSensorState[4] = {false, false, false, false,};
+hsv hsv_color;
+rgb rgb_color;
 
+////////////////////////////////////////////////////////
+
+
+
+
+
+
+/*
+  // not enumerated()/mounted() yet: nothing to do
+  if (!TinyUSBDevice.mounted()) {
+    return;
+  }
+  */
+
+/////// SETUP /////////////////////////////////////////////////
 
 
 void setup() 
 {
+  // SETUP USB MIDI
   // Manual begin() is required on core without built-in support e.g. mbed rp2040
-  if (!TinyUSBDevice.isInitialized()) {
-    TinyUSBDevice.begin(0);
-  }
+  if (!TinyUSBDevice.isInitialized()) { TinyUSBDevice.begin(0); }
   usb_midi.setStringDescriptor("ORBITA BIG");
+  //USBDevice.setProductDescriptor     ("ORBITA SWISS                    ");    // TO TEST!
+
 
   // Initialize MIDI, and listen to channel 1
   MIDI_USB.begin(1);  // cann also be omni// all channels: (MIDI_CHANNEL_OMNI);
@@ -180,12 +199,11 @@ void setup()
   MIDI.turnThruOff();
 
 
-
-
+  // SETUP SERIAL DEBUG PORT (can be deactivated via DEBUG define = 0)
 #if DEBUG == 1
   Serial.begin(115200);
   //while (!Serial) delay(1);
-  delay(3000);
+  delay(2000);
   debugln("ORBITA BIG SWISS EDITION");
 #endif
 
@@ -229,28 +247,73 @@ void setup()
   display.writeDisplay();
 
 
-  // SETUP ENCODER
-  if (! encoder.begin(ENCODER_ADDR)) {
-    debugln("Couldn't find seesaw on default address");
-  }
+  // SETUP ENCODER 
+  if (! encoder.begin(ENCODER_ADDR)) { debugln("ERROR: Couldn't find Encoder on default address"); }
   encoder.pinMode(ENCODER_SWITCH, INPUT_PULLUP); // use a pin for the built in encoder switch
   encoder_position = encoder.getEncoderPosition();
-  debugln("Turning on interrupts");
   delay(10);
-  encoder.setGPIOInterrupts((uint32_t)1 << ENCODER_SWITCH, 1);
+  encoder.setGPIOInterrupts((uint32_t)1 << ENCODER_SWITCH, 1);  //Turning on interrupts
   encoder.enableEncoderInterrupt();
 
 
   // SETUP BUTTONS
-  TCA.begin();
-  //Set pinMode16 INPUT
-  TCA.pinMode16(0xFFFF);
-
-  // SETUP COLOR/HALL SENSORS
-  setupBridgeSensors();
+  if (!TCA.begin()) { debugln("ERROR: Failed to find TCA chip from Button Board"); }
+  TCA.pinMode16(0xFFFF);  //Set pinMode16 INPUT
 
 
-  // SETUP NEOPIXEL LEDS
+  // SETUP COLOR/HALL SENSORS ////////////////////////
+  if (!pixel1.begin(PIXEL1_ADDR)) { // return true if connected without error
+    debug("ERROR: Failed to find TCA9544a 1 chip on Address "); 
+    debug2ln(PIXEL1_ADDR, HEX);
+  }
+  if (!pixel2.begin(PIXEL2_ADDR)) { 
+    debug("ERROR: Failed to find TCA9544a 2 chip on Address "); 
+    debug2ln(PIXEL2_ADDR, HEX);
+  }
+  if (!pixel3.begin(PIXEL3_ADDR)) { 
+    debug("ERROR: Failed to find TCA9544a 3 chip on Address ");
+    debug2ln(PIXEL3_ADDR, HEX);
+  }
+  if (!pixel4.begin(PIXEL4_ADDR)) { 
+    debug("ERROR: Failed to find TCA9544a 4 chip on Address ");
+    debug2ln(PIXEL4_ADDR, HEX);
+  }
+
+  pixel1.setChannel(1);   //SET PIXEL to CH 1 -> no i2C dev connected, so we can select each pixels channel 0 one after another
+  pixel2.setChannel(1);
+  pixel3.setChannel(1);
+  pixel4.setChannel(1);
+
+  pixel1.setChannel(0);
+  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor"); }
+  else { RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); }
+  pixel1.setChannel(1);
+
+  pixel2.setChannel(0);
+  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor"); }
+  else { RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); }
+  pixel2.setChannel(1);
+
+  pixel3.setChannel(0);
+  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor"); }
+  else { RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); }
+  pixel3.setChannel(1);
+
+  pixel4.setChannel(0);
+  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor"); }
+  else { RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); }
+  pixel4.setChannel(1);
+
+
+  // SETUP MCP CV DAC ////////////////////////
+  if (!mcp.begin()) { debugln("ERROR: Failed to find MCP4728 chip"); }
+  setCV(0, 2048);
+  setCV(1, 2048);
+  setCV(2, 2048);
+  setCV(3, 2048);
+
+
+  // SETUP NEOPIXEL LEDS ////////////////////////
   pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
   pixels.setBrightness(BRIGHTNESS);
   for(int i=3; i>0; i--) { // For each pixel...
@@ -259,7 +322,12 @@ void setup()
     delay(200);
   }
   updateLEDs();
+
 }
+
+
+/////// LOOP /////////////////////////////////////////////////
+
 
 
 void loop() 
@@ -286,13 +354,19 @@ void loop()
 }
 
 
+void setup1()
+{
 
-/*
-  // not enumerated()/mounted() yet: nothing to do
-  if (!TinyUSBDevice.mounted()) {
-    return;
-  }
-  */
+}
+
+
+void loop1()
+{
+
+}
+
+
+////////////////////////////////////////////////////////
 
 
 
@@ -329,7 +403,6 @@ void updateEncoder()
 
   targetMotorSpeed = encoder_position;
 }
-
 
 
 
@@ -391,6 +464,7 @@ void updateLEDs()
 }
 
 
+
 void updateButtons()
 {
   static long lastUpdate = millis();
@@ -410,14 +484,12 @@ void updateButtons()
           debugln(" just pressed");
           trackIsOn[3-i] = !trackIsOn[3-i];
           updateLEDs();
-          
         }
         else {
           debug("Button ");
           debug(3-i);
           debugln(" just released");
         }
-
         buttonState[3-i] = val;
       }
     }
@@ -426,7 +498,9 @@ void updateButtons()
 }
 
 
-void stopMotor(){
+
+void stopMotor()
+{
   motorIsOn = false;
   targetMotorSpeed = 0;
   analogWrite(MOTOR_PWM_PIN, 0);
@@ -435,7 +509,10 @@ void stopMotor(){
   display.writeDisplay();
 }
 
-void startMotor(){
+
+
+void startMotor()
+{
   motorIsOn = true;
   targetMotorSpeed = MIN_MOTOR_SPEED;
   analogWrite(MOTOR_PWM_PIN, 180);
@@ -444,6 +521,7 @@ void startMotor(){
   display.print(MIN_MOTOR_SPEED);
   display.writeDisplay();
 }
+
 
 
 void updateMotor()
@@ -489,96 +567,6 @@ void sendNoteOff(uint8_t pitch=64, uint8_t channel = 1)
   MIDI.sendNoteOff(pitch, 0, channel);
 }
 
-
-void setupBridgeSensors()
-{
-  // Begin communication with the pixels
-  
-  if (!pixel1.begin(PIXEL1_ADDR)) { // return true if connected without error
-    debug("Failed to find TCA9544a 1 chip on Address "); 
-    debug2ln(PIXEL1_ADDR, HEX);
-  }
-  else {
-    debug("Found TCA9544a 1 chip on Address ");
-    debug2ln(PIXEL1_ADDR, HEX);
-  }
-
-  if (!pixel2.begin(PIXEL2_ADDR)) { // return true if connected without error
-    debug("Failed to find TCA9544a 2 chip on Address "); 
-    debug2ln(PIXEL2_ADDR, HEX);
-  }
-  else {
-    debug("Found TCA9544a 2 chip on Address ");
-    debug2ln(PIXEL2_ADDR, HEX);
-  }
-
-  if (!pixel3.begin(PIXEL3_ADDR)) { // return true if connected without error
-    debug("Failed to find TCA9544a 3 chip on Address ");
-    debug2ln(PIXEL3_ADDR, HEX);
-  }
-  else {
-    debug("Found TCA9544a 3 chip on Address ");
-    debug2ln(PIXEL3_ADDR, HEX);
-  }
-
-  if (!pixel4.begin(PIXEL4_ADDR)) { // return true if connected without error
-    debug("Failed to find TCA9544a 4 chip on Address ");
-    debug2ln(PIXEL4_ADDR, HEX);
-  }
-  else {
-    debug("Found TCA9544a 4 chip on Address ");
-    debug2ln(PIXEL4_ADDR, HEX);
-  }
-
-  // SET PIXEL to CH 1 -> no i2C dev connected, so we can select each pixels channel 0 one after another
-  pixel1.setChannel(1);
-  pixel2.setChannel(1);
-  pixel3.setChannel(1);
-  pixel4.setChannel(1);
-
-  pixel1.setChannel(0);
-  if(!RGBWSensor.begin()) {
-    debugln("ERROR: couldn't detect the sensor");
-  }
-  else {
-    //init RGBW sensor with: - 40ms integration time - auto mode - color sensor enable
-    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);
-  }
-  pixel1.setChannel(1);
-
-  pixel2.setChannel(0);
-  if(!RGBWSensor.begin()) {
-    debugln("ERROR: couldn't detect the sensor");
-  }
-  else {
-    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);
-  }
-  pixel2.setChannel(1);
-
-  pixel3.setChannel(0);
-  if(!RGBWSensor.begin()) {
-    debugln("ERROR: couldn't detect the sensor");
-  }
-  else {
-    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);
-  }
-  pixel3.setChannel(1);
-
-  pixel4.setChannel(0);
-  if(!RGBWSensor.begin()) {
-    debugln("ERROR: couldn't detect the sensor");
-  }
-  else {
-    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);
-  }
-  pixel4.setChannel(1);
-
-  // SET PIXEL to CH 1 -> no i2C dev connected, so we can select each pixels channel 0 one after another
-  pixel1.setChannel(1);
-  pixel2.setChannel(1);
-  pixel3.setChannel(1);
-  pixel4.setChannel(1);
-}
 
 
 
@@ -726,6 +714,8 @@ void updateColorSensor(uint8_t track)
 
   if(hsv_color.h != lastMeasuredHue[track]) {
     lastMeasuredHue[track]=hsv_color.h;
+    // Set CV per Track to Hue Value
+    setCV(track, map(hsv_color.h, 0, 390, 0, 4095));
   }
 
 /*
@@ -747,23 +737,7 @@ void updateColorSensor(uint8_t track)
   debug(" val: "), debugln(hsv_color.v);
 */
 
-/*
-  if (hsv_color.s >= 0.0002) {           // if below 0.4 its too dark, we dont regocnize as a colour
-    if(hsv_color.h > 250 || hsv_color.h < 35){
-        debugln("MAGENTA");
-        color_detected =  3;
-    } else if(hsv_color.h >= 35 && hsv_color.h < 70){
-        debugln("RED");
-        color_detected =  0;
-    } else if(hsv_color.h >= 70 && hsv_color.h < 100){
-        debugln("YELLOW");
-        color_detected =  1;
-    } else  {
-      debugln("BLUE");
-      color_detected =  2;
-    }
-  }
-  */
+
 
   if(track == 0) pixel1.setChannel(1);
   else if(track == 1) pixel2.setChannel(1);
@@ -799,7 +773,6 @@ int detect_color(uint8_t track)
 
 
 
-
 void turnGateOnOff(uint8_t track, bool onf){
   switch(track){
     case 0:
@@ -819,3 +792,25 @@ void turnGateOnOff(uint8_t track, bool onf){
   }
 }
 
+
+void setCV(uint8_t _track, int _cvVal)
+{
+  if(_cvVal>=0 && _cvVal<= 4095){
+    switch (_track){
+      case 0:
+        mcp.setChannelValue(MCP4728_CHANNEL_A, _cvVal);
+        break;
+      case 1:
+        mcp.setChannelValue(MCP4728_CHANNEL_B, _cvVal);
+        break;
+      case 2:
+        mcp.setChannelValue(MCP4728_CHANNEL_C, _cvVal);
+        break;
+      case 3:
+        mcp.setChannelValue(MCP4728_CHANNEL_D, _cvVal);
+        break;
+      default:
+        break;
+    }
+  }
+}
