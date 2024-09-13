@@ -1,7 +1,7 @@
 # orbita50-swiss-firmware
 Orbita50 - Swiss Edition - Arduino Firmware
 
-[![Product Render][product-screenshot]](orbita50-swiss-firmware/Hardware_Setup/orbita_50_swiss_render9.png)
+[![Product Render][product-screenshot]](Hardware_Setup/orbita_50_swiss_render9.png)
 
 
 # HARDWARE
