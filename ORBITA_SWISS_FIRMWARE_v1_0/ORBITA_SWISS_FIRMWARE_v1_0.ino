@@ -777,19 +777,22 @@ int detect_color(uint8_t track)
 {
   int color_detected = -1;
 
-    if(lastMeasuredHue[track] > 260 || lastMeasuredHue[track] < 15){
-        debugln("MAGENTA");
+    if(lastMeasuredHue[track] > 250 || lastMeasuredHue[track] < 15){
+        debug("MAGENTA");
         color_detected =  3;
-    } else if(lastMeasuredHue[track] >= 15 && lastMeasuredHue[track] < 70){
-        debugln("RED");
+    } else if(lastMeasuredHue[track] >= 15 && lastMeasuredHue[track] < 75){
+        debug("RED");
         color_detected =  0;
-    } else if(lastMeasuredHue[track] >= 70 && lastMeasuredHue[track] < 160){
-        debugln("YELLOW");
+    } else if(lastMeasuredHue[track] >= 75 && lastMeasuredHue[track] < 150){
+        debug("YELLOW");
         color_detected =  1;
     } else  {
-      debugln("BLUE");
+      debug("BLUE");
       color_detected =  2;
     }
+
+  debugln(" - Hue: ");
+  debugln(lastMeasuredHue[track]);
 
   return color_detected;  //-> if we dont play a note we send -1
 }
