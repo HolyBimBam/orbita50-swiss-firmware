@@ -6,9 +6,9 @@ Orbita50 - Swiss Edition - Arduino Firmware
 
 ## HARDWARE
 
-### Orbita ERIN Mainboard 
+### Playtroncia Orbita ERIN Mainboard 
 
-### 4 Pixel Sensor Boards with VEML6040 Ambient Light Sensor & 3 Neopixel per Board
+### 4x Playtroncia Pixel Sensor Boards with VEML6040 Ambient Light Sensor & 3 Neopixel per Board
 - PIXEL1_ADDR 0x71  *outer circle
 - PIXEL2_ADDR 0x72  
 - PIXEL3_ADDR 0x73  
