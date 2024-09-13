@@ -14,7 +14,7 @@ Orbita50 - Swiss Edition - Arduino Firmware
 - PIXEL3_ADDR 0x73  
 - PIXEL4_ADDR 0x74  
 
-### Adafruit Stemma Encoder Module [Link](https://www.adafruit.com/product/4991)
+### Adafruit Stemma Encoder Module
 - ENCODER_ADDR  0x36
 
 ### Adafruit Stemma 7 Segment Display
