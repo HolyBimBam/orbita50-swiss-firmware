@@ -9,11 +9,10 @@ Orbita50 - Swiss Edition - Arduino Firmware
 Orbita ERIN Mainboard 
 
 4 Pixel Sensor Boards with VEML6040 Ambient Light Sensor & 3 Neopixel per Board
-- PIXEL1_ADDR 0x71 (Jumper: )	*outer circle
-- PIXEL2_ADDR 0x72 (Jumper: )
-- PIXEL3_ADDR 0x73 (Jumper: )
-- PIXEL4_ADDR 0x74 (Jumper: )	*inner circle
-PIXEL JUMPER SETTINGS:
+- PIXEL1_ADDR 0x71  *outer circle
+- PIXEL2_ADDR 0x72  
+- PIXEL3_ADDR 0x73  
+- PIXEL4_ADDR 0x74  
 
 Adafruit Stemma Encoder Module 
 - ENCODER_ADDR  0x36
@@ -29,15 +28,11 @@ Custom Modified CV & Gate Board
 - Gate Signals direct via ERIN Pins 27 / 1 / 23 / 25
 
 
+# I/0
 
-
-
-
-
-Button Board 
-
-- JUMPER
-- i2c Address
+- USB C Connector for Power & MIDI
+- Analog MIDI via 3.5mm TRS Type A Connector (on ERIN)
+- 4x CV & 4x Gate via 3.5mm TS Connector (on Expander)
 
 
 
