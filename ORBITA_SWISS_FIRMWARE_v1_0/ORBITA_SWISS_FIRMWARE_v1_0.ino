@@ -296,14 +296,6 @@ void loop()
 
 
 
-/*
- * This example shows how to read from a seesaw encoder module.
- * The available encoder API is:
- *      int32_t getEncoderPosition();
-        int32_t getEncoderDelta();
- */
-
-
 void updateEncoder() 
 {
   static bool enc_ButtonState = false;
@@ -337,7 +329,6 @@ void updateEncoder()
 
   targetMotorSpeed = encoder_position;
 }
-
 
 
 
@@ -501,72 +492,65 @@ void sendNoteOff(uint8_t pitch=64, uint8_t channel = 1)
 
 void setupBridgeSensors()
 {
-  // Begin communication with the pixel1
+  // Begin communication with the pixels
+  
   if (!pixel1.begin(PIXEL1_ADDR)) { // return true if connected without error
-    debug("Failed to find TCA9544a 1 chip on Address ");
-    debug2(PIXEL1_ADDR, HEX);
-    debugln(", check Code for the correct i2c address, eg 0x70 - 0x77");
-    while (1);
+    debug("Failed to find TCA9544a 1 chip on Address "); 
+    debug2ln(PIXEL1_ADDR, HEX);
   }
-  debug("Found TCA9544a 1 chip on Address ");
-  debug2ln(PIXEL1_ADDR, HEX);
+  else {
+    debug("Found TCA9544a 1 chip on Address ");
+    debug2ln(PIXEL1_ADDR, HEX);
+  }
 
-  // Begin communication with the pixel2
   if (!pixel2.begin(PIXEL2_ADDR)) { // return true if connected without error
-    debug("Failed to find TCA9544a 2 chip on Address ");
-    debug2(PIXEL2_ADDR, HEX);
-    debugln(", check Code for the correct i2c address, eg 0x70 - 0x77");
-    while (1);
+    debug("Failed to find TCA9544a 2 chip on Address "); 
+    debug2ln(PIXEL2_ADDR, HEX);
   }
-  debug("Found TCA9544a 2 chip on Address ");
-  debug2ln(PIXEL2_ADDR, HEX);
+  else {
+    debug("Found TCA9544a 2 chip on Address ");
+    debug2ln(PIXEL2_ADDR, HEX);
+  }
 
-  // Begin communication with the pixel3
   if (!pixel3.begin(PIXEL3_ADDR)) { // return true if connected without error
     debug("Failed to find TCA9544a 3 chip on Address ");
-    debug2(PIXEL3_ADDR, HEX);
-    debugln(", check Code for the correct i2c address, eg 0x70 - 0x77");
-    while (1);
+    debug2ln(PIXEL3_ADDR, HEX);
   }
-  debug("Found TCA9544a 3 chip on Address ");
-  debug2ln(PIXEL3_ADDR, HEX);
+  else {
+    debug("Found TCA9544a 3 chip on Address ");
+    debug2ln(PIXEL3_ADDR, HEX);
+  }
 
-  // Begin communication with the pixel4
   if (!pixel4.begin(PIXEL4_ADDR)) { // return true if connected without error
     debug("Failed to find TCA9544a 4 chip on Address ");
-    debug2(PIXEL4_ADDR, HEX);
-    debugln(", check Code for the correct i2c address, eg 0x70 - 0x77");
-    while (1);
+    debug2ln(PIXEL4_ADDR, HEX);
   }
-  debug("Found TCA9544a 4 chip on Address ");
-  debug2ln(PIXEL4_ADDR, HEX);
+  else {
+    debug("Found TCA9544a 4 chip on Address ");
+    debug2ln(PIXEL4_ADDR, HEX);
+  }
 
-
+  // SET PIXEL to CH 1 -> no i2C dev connected, so we can select each pixels channel 0 one after another
   pixel1.setChannel(1);
   pixel2.setChannel(1);
   pixel3.setChannel(1);
   pixel4.setChannel(1);
 
-
   pixel1.setChannel(0);
   if(!RGBWSensor.begin()) {
     debugln("ERROR: couldn't detect the sensor");
-    while(1){}
   }
   else {
-    //init RGBW sensor with: - 320ms integration time - auto mode - color sensor enable
+    //init RGBW sensor with: - 40ms integration time - auto mode - color sensor enable
     RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);
-
   }
   pixel1.setChannel(1);
 
   pixel2.setChannel(0);
   if(!RGBWSensor.begin()) {
     debugln("ERROR: couldn't detect the sensor");
-    while(1){}
   }
   else {
-    //init RGBW sensor with: - 320ms integration time - auto mode - color sensor enable
     RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);
   }
   pixel2.setChannel(1);
@@ -574,10 +558,8 @@ void setupBridgeSensors()
   pixel3.setChannel(0);
   if(!RGBWSensor.begin()) {
     debugln("ERROR: couldn't detect the sensor");
-    while(1){}
   }
   else {
-    //init RGBW sensor with: - 320ms integration time - auto mode - color sensor enable
     RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);
   }
   pixel3.setChannel(1);
@@ -585,10 +567,8 @@ void setupBridgeSensors()
   pixel4.setChannel(0);
   if(!RGBWSensor.begin()) {
     debugln("ERROR: couldn't detect the sensor");
-    while(1){}
   }
   else {
-    //init RGBW sensor with: - 320ms integration time - auto mode - color sensor enable
     RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);
   }
   pixel4.setChannel(1);
@@ -603,7 +583,6 @@ void setupBridgeSensors()
 
 
 
-
 void updateHallSensors()
 {
   readHallSensorX(0);
@@ -611,6 +590,7 @@ void updateHallSensors()
   readHallSensorX(2);
   readHallSensorX(3);
 }
+
 
 bool readHallSensorX(uint8_t track)
 {
@@ -793,8 +773,8 @@ void updateColorSensor(uint8_t track)
 }
 
 
-int detect_color(uint8_t track) {
-
+int detect_color(uint8_t track) 
+{
   int color_detected = -1;
 
     if(lastMeasuredHue[track] > 260 || lastMeasuredHue[track] < 15){
@@ -811,39 +791,8 @@ int detect_color(uint8_t track) {
       color_detected =  2;
     }
 
-/*
-    if(RGBWSensor.getRed() > RGBWSensor.getGreen() && RGBWSensor.getRed() > RGBWSensor.getBlue()){
-      //if(RGBWSensor.getCCT() > 5000){
-      if(hsv_color.h > 280 || hsv_color.h < 30){
-        debugln("MAGENTA");
-        color_detected =  3;
-      } else {
-        debugln("RED");
-        color_detected =  0;
-      }
-    }
-    
-    else if(RGBWSensor.getRed() < RGBWSensor.getBlue() && RGBWSensor.getCCT() > 10000 ) {
-      debugln("BLUE");
-      color_detected =  2;
-    }
-    else if (RGBWSensor.getGreen() > RGBWSensor.getRed()) {
-      debugln("YELLOW");
-      color_detected =  1;
-    } 
-    else {
-      debugln("RED");
-      color_detected =  0;
-    }
-    */
-  
-
-
-
   return color_detected;  //-> if we dont play a note we send -1
-
 }
-
 
 
 
