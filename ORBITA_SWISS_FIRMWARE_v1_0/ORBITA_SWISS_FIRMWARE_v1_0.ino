@@ -156,6 +156,7 @@ void handleControlChange(byte channel, byte number, byte value)   // For Remote 
 
 bool trackIsOn[4]={1,1,1,1};
 bool motorIsOn = false;
+bool motorJustStarted = false;
 int currentMotorSpeed = 0;
 int targetMotorSpeed = 0;
 int32_t encoder_position;
@@ -391,7 +392,7 @@ void updateEncoder()
   if (encoder_position != new_position && new_position >= MIN_MOTOR_SPEED && new_position <= MAX_MOTOR_SPEED) {
     debugln(new_position);         // display new position
     encoder_position = new_position;      // and save for next round
-    display.print(encoder_position);
+    display.print(encoder_position-MIN_MOTOR_SPEED+1);
     display.writeDisplay();
   } else if (new_position < MIN_MOTOR_SPEED){
     encoder_position = MIN_MOTOR_SPEED;
@@ -517,6 +518,7 @@ void startMotor()
   targetMotorSpeed = MIN_MOTOR_SPEED;
   analogWrite(MOTOR_PWM_PIN, 180);
   currentMotorSpeed = 180;
+  motorJustStarted = true;
   encoder.setEncoderPosition(MIN_MOTOR_SPEED);
   display.print(MIN_MOTOR_SPEED);
   display.writeDisplay();
@@ -537,10 +539,20 @@ void updateMotor()
       }
     } 
     else {
+      
       if(currentMotorSpeed != targetMotorSpeed){
         if(currentMotorSpeed < targetMotorSpeed){
           if((targetMotorSpeed - currentMotorSpeed) > 3){
             currentMotorSpeed = currentMotorSpeed+3;
+          }
+        }
+        else if(motorJustStarted) {
+          // wait a bit and then slow down
+          if((currentMotorSpeed - targetMotorSpeed) > 3){
+            currentMotorSpeed = currentMotorSpeed-3;
+          } else {
+            currentMotorSpeed = targetMotorSpeed;
+            motorJustStarted = false;
           }
         }
         else {
@@ -814,3 +826,24 @@ void setCV(uint8_t _track, int _cvVal)
     }
   }
 }
+
+
+// dac_values[6] = C4
+dac_values = [
+    # Octave -1 (C0 to B0)
+    0,    68, 137, 205, 273, 341, 410, 478, 546, 614, 683, 751,
+
+    # Octave 0 (C1 to B1)
+    819, 887, 956, 1024, 1092, 1161, 1229, 1297, 1365, 1434, 1502, 1570,
+
+    # Octave 1 (C2 to B2)
+    1638, 1707, 1775, 1843, 1911, 1980, 2048, 2116, 2185, 2253, 2321, 2389,
+
+    # Octave 2 (C3 to B3)
+    2458, 2526, 2594, 2662, 2731, 2799, 2867, 2935, 3004, 3072, 3140, 3209,
+
+    # Octave 3 (C4 to B4)
+    3277, 3345, 3413, 3482, 3550, 3618, 3686, 3755, 3823, 3891, 3959, 4028,
+
+
+]
