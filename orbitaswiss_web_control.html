@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ORBITA50 SWISS EDITION - Remote Control</title>
+    <script src="https://cdn.jsdelivr.net/gh/benc-uk/touchmidi@v2.2.0/dist/bundle.js"></script>
+  </head>
+  <body>
+
+    <h1>ORBITA50 SWISS EDITION - Remote Control</h1>
+
+    <h2>MIDI NOTES  ( C4 = 40 )</h2>
+
+      <group-row grow="2">
+        <h3>    T1</h3>
+        <group-row border="0.8">
+        <midi-slider label="T1\nCC21\n %v" cc="21"  colour="#FF0000" value-offset="30"></midi-slider>
+        <midi-slider label="T1\nCC22\n %v" cc="22"  colour="#FFFF00" ></midi-slider>
+        <midi-slider label="T1\nCC23\n %v" cc="23"  colour="#0022FF" ></midi-slider>
+        <midi-slider label="T1\nCC24\n %v" cc="24"  colour="#FF00AA" ></midi-slider>
+        </group-row>
+        <h3>.   T2</h3>
+        <group-row border="0.8">
+        <midi-slider label="T2\nCC25\n %v" cc="25"  colour="#FF0000" ></midi-slider>
+        <midi-slider label="T2\nCC26\n %v" cc="26"  colour="#FFFF00" ></midi-slider>
+        <midi-slider label="T2\nCC27\n %v" cc="27"  colour="#0022FF" ></midi-slider>
+        <midi-slider label="T2\nCC28\n %v" cc="28"  colour="#FF00AA" ></midi-slider>
+        </group-row>
+        <h3>.   T3</h3>
+        <group-row border="0.8">   
+        <midi-slider label="T3\nCC29\n %v" cc="29" colour="#FF0000" ></midi-slider>
+        <midi-slider label="T3\nCC30\n %v" cc="30" colour="#FFFF00" ></midi-slider>
+        <midi-slider label="T3\nCC31\n %v" cc="31" colour="#0022FF" ></midi-slider>
+        <midi-slider label="T3\nCC32\n %v" cc="32" colour="#FF00AA" ></midi-slider>
+        </group-row>
+        <h3>.   T4</h3>
+        <group-row border="0.8">
+        <midi-slider label="T4\nCC33\n %v" cc="33" colour="#FF0000" ></midi-slider>
+        <midi-slider label="T4\nCC34\n %v" cc="34" colour="#FFFF00" ></midi-slider>
+        <midi-slider label="T4\nCC35\n %v" cc="35" colour="#0022FF" ></midi-slider>
+        <midi-slider label="T4\nCC36\n %v" cc="36" colour="#FF00AA" ></midi-slider> 
+        </group-row>     
+      </group-row>
+
+
+
+    <h2>CV NOTES</h2>
+      <group-row grow="2">
+        <h3>    T1</h3>
+        <group-row border="0.8">
+          <midi-slider label="T1\nCC37\n %v" cc="37"  min="34" max="93" colour="#FF0000" ></midi-slider>
+          <midi-slider label="T1\nCC38\n %v" cc="38"  min="34" max="93" colour="#FFFF00" ></midi-slider>
+          <midi-slider label="T1\nCC39\n %v" cc="39"  min="34" max="93" colour="#0022FF" ></midi-slider>
+          <midi-slider label="T1\nCC40\n %v" cc="40"  min="34" max="93" colour="#FF00AA" ></midi-slider>
+        </group-row>
+        <h3>.   T2</h3>
+        <group-row border="0.8">
+          <midi-slider label="T2\nCC41\n %v" cc="41"  min="34" max="93" colour="#FF0000" ></midi-slider>
+          <midi-slider label="T2\nCC42\n %v" cc="42"  min="34" max="93" colour="#FFFF00" ></midi-slider>
+          <midi-slider label="T2\nCC43\n %v" cc="43"  min="34" max="93" colour="#0022FF" ></midi-slider>
+          <midi-slider label="T2\nCC44\n %v" cc="44"  min="34" max="93" colour="#FF00AA" ></midi-slider>
+        </group-row>
+        <h3>.   T3</h3>
+        <group-row border="0.8">        
+          <midi-slider label="T3\nCC45\n %v" cc="45" min="34" max="93" colour="#FF0000" ></midi-slider>
+          <midi-slider label="T3\nCC46\n %v" cc="46" min="34" max="93" colour="#FFFF00" ></midi-slider>
+          <midi-slider label="T3\nCC47\n %v" cc="47" min="34" max="93" colour="#0022FF" ></midi-slider>
+          <midi-slider label="T3\nCC48\n %v" cc="48" min="34" max="93" colour="#FF00AA" ></midi-slider>
+        </group-row>
+        <h3>.   T4</h3>
+        <group-row border="0.8">
+          <midi-slider label="T4\nCC49\n %v" cc="49" min="34" max="93" colour="#FF0000" ></midi-slider>
+          <midi-slider label="T4\nCC50\n %v" cc="50" min="34" max="93" colour="#FFFF00" ></midi-slider>
+          <midi-slider label="T4\nCC51\n %v" cc="51" min="34" max="93" colour="#0022FF" ></midi-slider>
+          <midi-slider label="T4\nCC52\n %v" cc="52" min="34" max="93" colour="#FF00AA" ></midi-slider>   
+        </group-row>
+   
+      </group-row>
+
+
+
+      <group-row >
+        <midi-spacer></midi-spacer>
+        <midi-spacer></midi-spacer>
+        <h2>SAVE SETTINGS</h2>
+        <midi-spacer></midi-spacer>
+        <midi-button label="SAVE" chan="1" cc="43" value="127"  colour="#00FF00" label-scale="0.6">></midi-button>
+        <midi-spacer></midi-spacer>
+        <midi-spacer></midi-spacer>
+        <midi-spacer></midi-spacer>
+        <h2>COLOR 2 CV ON</h2>
+        <midi-spacer></midi-spacer>
+        <midi-button toggle label="COLOR TO CV" chan="1" cc="44" value="127"  off-value="0" colour="#00FF00" label-scale="0.6">></midi-button>
+        <midi-spacer></midi-spacer>
+        <midi-spacer></midi-spacer>
+        <midi-spacer></midi-spacer>
+        <midi-spacer></midi-spacer>
+
+      </group-row>
+
+<!--
+       <midi-encoder label="UPDATE RATE" cc="45" colour="#FF0000" label-scale="0.8"></midi-encoder>
+       <midi-encoder label="UPDATE RATE" cc="46" colour="#FF6600" label-scale="0.8"></midi-encoder>
+
+    <group-column grow="2">
+      <group-row>
+        <midi-spacer></midi-spacer>
+        <midi-button note="49" colour="#0022FF"></midi-button>
+        <midi-button note="51" colour="#0022FF"></midi-button>
+        <midi-spacer></midi-spacer>
+
+      </group-row>
+      <group-row>
+
+      </group-row>
+    </group-column>
+  -->
+  </body>
+</html>
