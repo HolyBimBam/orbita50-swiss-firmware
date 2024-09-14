@@ -10,9 +10,9 @@
 #include <Adafruit_NeoPixel.h>
 #include "Adafruit_seesaw.h"
 #include "TCA9555.h"
-
 #include <tca9544a.h>
 #include "veml6040.h"
+#include <LittleFS.h>
 
 
 
@@ -34,10 +34,28 @@ uint8_t midiNotes[4][4] = {{36,37,38,39},
                            {44,45,46,47}, 
                            {48,49,50,51}};
 
+uint8_t cvNotes[4][4] = {{16,28,40,52}, 
+                         {28,32,35,40}, 
+                         {28,31,35,40}, 
+                         {28,32,35,37}};
+
+uint16_t dac_PitchValues[] = {
+    //Octave -1 (F#3 to B3)
+    0,     68,  137,  205,  273,  341, 
+    //Octave 0 (C4 to B4)
+    410,  478,  546,  614,  683,  751,  819,  887,  956, 1024, 1092, 1161,
+    //Octave 1 (C5 to B5)
+    1229, 1297, 1365, 1434, 1502, 1570, 1638, 1707, 1775, 1843, 1911, 1980, 
+    //Octave 2 (C6 to B6)
+    2048, 2116, 2185, 2253, 2321, 2389, 2458, 2526, 2594, 2662, 2731, 2799, 
+    //Octave 3 (C7 to B7)
+    2867, 2935, 3004, 3072, 3140, 3209, 3277, 3345, 3413, 3482, 3550, 3618, 
+    //Octave 4 (C8 to F8)
+    3686, 3755, 3823, 3891, 3959, 4028
+}; // dac_values[6] = C4
 
 
-
-
+#define VERSION_NUMBER ("1.0.3")
 ////////////////////////////////////////////
 
 #if DEBUG == 1
@@ -144,28 +162,45 @@ MIDI_CREATE_INSTANCE(HardwareSerial, Serial2, MIDI)  // USB HOST IO via UART PIN
 
 
 
-void handleControlChange(byte channel, byte number, byte value)   // For Remote Control via Browser/Midi-CC Input
-{
-  if(number >= 21 && number < 33){
-    //threshHold[number-21] = value*2;
-  }
-}
-
-
 ////////////////////////////////////////////////////////
 
 bool trackIsOn[4]={1,1,1,1};
 bool motorIsOn = false;
 bool motorJustStarted = false;
 int currentMotorSpeed = 0;
+uint8_t currentCVMode = 0;
 int targetMotorSpeed = 0;
 int32_t encoder_position;
 bool hallSensorState[4] = {false, false, false, false,};
 hsv hsv_color;
 rgb rgb_color;
+char buff[288];
 
 ////////////////////////////////////////////////////////
 
+
+
+
+void handleControlChange(byte channel, byte number, byte value)   // For Remote Control via Browser/Midi-CC Input
+{
+  debug("RX MIDI CC: "); debug(number); debug("-"); debug(value);
+  if(number >= 21 && number < 37){
+    midiNotes[((number-21)/4)][((number-21)%4)] = value;
+    //saveSettings();
+  } else if(number >= 37 && number < 53){
+    if(value<34) value = 34;     // C4 = 0.5 V = step 6 - 40-C4-6  ->34-F#3-0  -> 34+(5+12)-1 Steps: 93
+    if (value>93) value = 93;
+    cvNotes[((number-21)/4)][((number-21)%4)] = value;
+    //saveSettings();
+  }
+  else if(number == 53){
+    if(value>126) {} //saveSettingsToFile();
+  }
+  else if(number == 54){
+    if(value>126)  currentCVMode = 1;
+    else currentCVMode = 0;
+  }
+}
 
 
 
@@ -208,6 +243,7 @@ void setup()
   debugln("ORBITA BIG SWISS EDITION");
 #endif
 
+  loadSettingsFromMemory();
 
   // SETUP ERIN MULTIPLEXER FOR MIDI CONNECTION
   pinMode(MULTIPLEX_A_PIN, OUTPUT);
@@ -234,6 +270,8 @@ void setup()
   digitalWrite(GATE2_PIN, LOW);
   digitalWrite(GATE3_PIN, LOW);
   digitalWrite(GATE4_PIN, LOW);
+
+
 
 
   // SETUP I2C BUS and DEVICES
@@ -613,6 +651,7 @@ bool readHallSensorX(uint8_t track)
         }
         if(note>=0) { 
           sendNoteOn(midiNotes[track][note]);
+          //playCV_MIDI_Pitch(track, cvNotes[0][note]);
           lastNote[track] = midiNotes[track][note];
         };
       }
@@ -827,23 +866,191 @@ void setCV(uint8_t _track, int _cvVal)
   }
 }
 
+void playCV_MIDI_Pitch(uint8_t _track, uint8_t _note)
 
-// dac_values[6] = C4
-dac_values = [
-    # Octave -1 (C0 to B0)
-    0,    68, 137, 205, 273, 341, 410, 478, 546, 614, 683, 751,
-
-    # Octave 0 (C1 to B1)
-    819, 887, 956, 1024, 1092, 1161, 1229, 1297, 1365, 1434, 1502, 1570,
-
-    # Octave 1 (C2 to B2)
-    1638, 1707, 1775, 1843, 1911, 1980, 2048, 2116, 2185, 2253, 2321, 2389,
-
-    # Octave 2 (C3 to B3)
-    2458, 2526, 2594, 2662, 2731, 2799, 2867, 2935, 3004, 3072, 3140, 3209,
-
-    # Octave 3 (C4 to B4)
-    3277, 3345, 3413, 3482, 3550, 3618, 3686, 3755, 3823, 3891, 3959, 4028,
+{
+}
 
 
-]
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////
+
+
+void generateNewSettingsFile()
+{
+    //construct Filename
+    String filename = "settings.txt";
+    char number[2] = {'0','0'};
+
+    File f = LittleFS.open(filename, "w");
+    if (f) {
+      f.write("1.0.3");                           // change to define
+      f.write("\n");
+
+      for (int t=0; t<4; t++){
+        for (int p=0; p<4; p++){
+          number[0] = '0';
+          number[1] = '0';
+          (String(midiNotes[t][p])).toCharArray(number, 3);   
+          f.write(number, strlen(number));
+          f.write("\n");
+        }
+      }
+      for (int t=0; t<4; t++){
+        for (int p=0; p<4; p++){
+          number[0] = '0';
+          number[1] = '0';
+          (String(cvNotes[t][p])).toCharArray(number, 3);   
+          f.write(number, strlen(number));
+          f.write("\n");
+        }
+      }
+
+      number[0] = '0';
+      number[1] = '0';
+      (String(currentCVMode)).toCharArray(number, 3);   
+      f.write(number, strlen(number));
+      f.write("\n");
+      f.close();
+    }
+    debugln("Wrote new Settings File ");  
+}
+
+
+
+
+void loadSettingsFromMemory()
+{
+  uint8_t newIntNumber = 0;
+  bool fileChanged = false;
+  
+  File i = LittleFS.open("settings.txt", "r");
+  if (i) 
+  {
+    debugln("Reading settings.txt:");
+    bzero(buff, 288);
+
+    if (i.read((uint8_t *)buff, 63))  // if there is enough in mem to fill buffer
+    {            
+      String newString = strtok(buff, "\n");
+      debug("Firmware Version in Memory: ");
+      debugln(newString);
+      // if not currrent Version generate new Settings File
+      debug("loading Midi Notes: ");
+
+      for (int t=0; t<4; t++){
+        for (int p=0; p<4; p++)
+        {
+          newIntNumber = ((String)strtok(NULL, "\n")).toInt();
+          if(newIntNumber>=0 && newIntNumber<=127){
+            debug("t");debug(t);debug("-");debug("p");debug(p);debug(": ");
+            debugln(newIntNumber);
+            midiNotes[t][p] = newIntNumber;
+          } else {
+            debugln("No valid Data for MIDI Note "); debug("t");debug(t);debug("-");debug("p");debug(p);debug(": ");
+            midiNotes[t][p] = 40+t*4+p;
+            fileChanged = true;
+          }
+        }
+      }
+
+      debug("loading CV Notes: ");
+
+      for (int t=0; t<4; t++){
+        for (int p=0; p<4; p++)
+        {
+          newIntNumber = ((String)strtok(NULL, "\n")).toInt();
+          if(newIntNumber>=34 && newIntNumber<=93){   // C4 = 0.5 V = step 6 - 40-C4-6  ->34-F#3-0  -> 34+(5+12)-1 Steps: 93
+            debug("t");debug(t);debug("-");debug("p");debug(p);debug(": ");
+            debugln(newIntNumber);
+            cvNotes[t][p] = newIntNumber;
+          } else {
+            debugln("No valid Data for CV Note "); debug("t");debug(t);debug("-");debug("p");debug(p);debug(": ");
+            cvNotes[t][p] = 40+t*4+p;
+            fileChanged = true;
+          }
+        }
+      }
+
+      debug("loading CV Mode: ");
+
+      newIntNumber = ((String)strtok(NULL, "\n")).toInt();
+      if(newIntNumber>=0 && newIntNumber<=2){
+        debug("Mode: ");
+        debugln(newIntNumber);
+        currentCVMode = newIntNumber;
+      } else {
+        debugln("No valid Data for CV MODE "); 
+        currentCVMode=0;;
+        fileChanged = true;
+      }
+ 
+    }
+    /*while (i.available()) {
+      Serial.write(i.read());
+    }*/
+    debugln("---------------");
+    i.close();
+
+    if(fileChanged == true){
+      // SAVE CURRENT (corrected) SETTINGS
+      debugln("Found invalid Data, Saving changed Settings to file settings.txt");
+      saveSettingsToFile();
+    }
+
+  } else {
+    debugln("settings.txt does not exist, generating a new one");
+    // make a new valid Settings.txt file
+    generateNewSettingsFile();
+  }
+}
+
+
+
+void saveSettingsToFile()
+{
+    //construct Filename
+    String filename = "settings.txt";
+    char number[2] = {'0','0'};
+
+    File f = LittleFS.open(filename, "w");
+    if (f) {
+      f.write("1.0.3");                           // change to define
+      f.write("\n");
+
+      for (int t=0; t<4; t++){
+        for (int p=0; p<4; p++){
+          number[0] = '0';
+          number[1] = '0';
+          (String(midiNotes[t][p])).toCharArray(number, 3);   
+          f.write(number, strlen(number));
+          f.write("\n");
+        }
+      }
+      for (int t=0; t<4; t++){
+        for (int p=0; p<4; p++){
+          number[0] = '0';
+          number[1] = '0';
+          (String(cvNotes[t][p])).toCharArray(number, 3);   
+          f.write(number, strlen(number));
+          f.write("\n");
+        }
+      }
+
+      number[0] = '0';
+      number[1] = '0';
+      (String(currentCVMode)).toCharArray(number, 3);   
+      f.write(number, strlen(number));
+      f.write("\n");
+      f.close();
+    }
+    debugln("Wrote  Settings to Memory ");  
+}
+
+
+
+
+
