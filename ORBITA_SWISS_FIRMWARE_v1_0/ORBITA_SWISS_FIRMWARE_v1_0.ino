@@ -52,10 +52,11 @@ uint16_t dac_PitchValues[] = {
     2867, 2935, 3004, 3072, 3140, 3209, 3277, 3345, 3413, 3482, 3550, 3618, 
     //Octave 4 (C8 to F8)
     3686, 3755, 3823, 3891, 3959, 4028
-}; // dac_values[6] = C4
+}; // dac_values[6] = C4 -> input 16
 
 
 #define VERSION_NUMBER ("1.0.3")
+
 ////////////////////////////////////////////
 
 #if DEBUG == 1
@@ -197,8 +198,8 @@ void handleControlChange(byte channel, byte number, byte value)   // For Remote 
     if(value>126) {} //saveSettingsToFile();
   }
   else if(number == 54){
-    if(value>126)  currentCVMode = 1;
-    else currentCVMode = 0;
+    if(value>126)  currentCVMode = 1;     // CV COLOR MODe
+    else currentCVMode = 0;               // CV PITCH MOE
   }
 }
 
@@ -651,7 +652,7 @@ bool readHallSensorX(uint8_t track)
         }
         if(note>=0) { 
           sendNoteOn(midiNotes[track][note]);
-          //playCV_MIDI_Pitch(track, cvNotes[0][note]);
+          if(currentCVMode == 0) playCV_MIDI_Pitch(track, cvNotes[track][note]);
           lastNote[track] = midiNotes[track][note];
         };
       }
@@ -765,8 +766,8 @@ void updateColorSensor(uint8_t track)
 
   if(hsv_color.h != lastMeasuredHue[track]) {
     lastMeasuredHue[track]=hsv_color.h;
-    // Set CV per Track to Hue Value
-    setCV(track, map(hsv_color.h, 0, 390, 0, 4095));
+    // Set CV per Track to Hue Value in CV Colour MODE
+    if(currentCVMode == 1)      setCV(track, map(hsv_color.h, 0, 390, 0, 4095));
   }
 
 /*
@@ -867,11 +868,11 @@ void setCV(uint8_t _track, int _cvVal)
 }
 
 void playCV_MIDI_Pitch(uint8_t _track, uint8_t _note)
-
 {
+  //if(_note>34 && _note<93){
+    setCV(_track, dac_PitchValues[_note-10]); // dac_values[6] = C4 -> input 16
+  //}
 }
-
-
 
 
 
@@ -1018,7 +1019,7 @@ void saveSettingsToFile()
 
     File f = LittleFS.open(filename, "w");
     if (f) {
-      f.write("1.0.3");                           // change to define
+      f.write(VERSION_NUMBER);                           // change to define
       f.write("\n");
 
       for (int t=0; t<4; t++){
