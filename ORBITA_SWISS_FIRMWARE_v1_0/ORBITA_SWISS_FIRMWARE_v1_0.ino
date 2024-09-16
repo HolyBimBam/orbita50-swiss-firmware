@@ -12,9 +12,10 @@
 #include "TCA9555.h"
 #include <tca9544a.h>
 #include "veml6040.h"
-#include <LittleFS.h>
+//#include <LittleFS.h>
+#include <EEPROM.h>
 
-
+// ERIN USES WSW25Q16 FLASH with 2MB
 
 /////// SETTINGS ///////////////////////////
 
@@ -27,7 +28,7 @@
 #define MOTOR_UPDATE_RATE 400   // for now to prevent too quick changes
 
 #define MIN_MOTOR_SPEED 118
-#define MAX_MOTOR_SPEED 170
+#define MAX_MOTOR_SPEED 140
 
 uint8_t midiNotes[4][4] = {{36,37,38,39}, 
                            {40,41,42,43}, 
@@ -55,7 +56,7 @@ uint16_t dac_PitchValues[] = {
 }; // dac_values[6] = C4 -> input 16
 
 
-#define VERSION_NUMBER ("1.0.3")
+#define VERSION_NUMBER 11
 
 ////////////////////////////////////////////
 
@@ -184,22 +185,36 @@ char buff[288];
 
 void handleControlChange(byte channel, byte number, byte value)   // For Remote Control via Browser/Midi-CC Input
 {
-  debug("RX MIDI CC: "); debug(number); debug("-"); debug(value);
-  if(number >= 21 && number < 37){
+  debug("RX MIDI CC: "); debug(number); debug("-"); debugln(value);
+  if(number >= 21 && number < 37)
+  {
     midiNotes[((number-21)/4)][((number-21)%4)] = value;
     //saveSettings();
-  } else if(number >= 37 && number < 53){
-    if(value<34) value = 34;     // C4 = 0.5 V = step 6 - 40-C4-6  ->34-F#3-0  -> 34+(5+12)-1 Steps: 93
-    if (value>93) value = 93;
-    cvNotes[((number-21)/4)][((number-21)%4)] = value;
+  } 
+  else if(number >= 37 && number < 53)
+  {
+    if(value<10) value = 10;     // C4 = 0.5 V = step 6 - 40-C4-6  ->34-F#3-0  -> 34+(5+12)-1 Steps: 93
+    if (value>70) value = 70;
+    cvNotes[(int)((number-37)/4)][((number-37)%4)] = value;
+    debug("Changed Pitch of Track "); debug((int)((number-37)/4)); debug(" col: "); debug(((number-37)%4)); debug(" to "); debugln(value);
     //saveSettings();
   }
   else if(number == 53){
-    if(value>126) {} //saveSettingsToFile();
+    if(value>126) { 
+        debugln("Save Settings to Memory");
+        //saveSettingsToFile(); 
+        saveSettings();
+    } 
   }
   else if(number == 54){
-    if(value>126)  currentCVMode = 1;     // CV COLOR MODe
-    else currentCVMode = 0;               // CV PITCH MOE
+    if(value>126)  {
+      currentCVMode = 1;     // CV COLOR MODe
+      debugln("Changed to Color CV Mode");
+    }
+    else {
+      currentCVMode = 0;               // CV PITCH MOE
+      debugln("Changed to Pitch CV Mode");
+    }
   }
 }
 
@@ -219,19 +234,29 @@ void handleControlChange(byte channel, byte number, byte value)   // For Remote 
 
 void setup() 
 {
+/*
+    // Manual begin() is required on core without built-in support for TinyUSB such as mbed rp2040
+  TinyUSB_Device_Init(0);
+  // Initialize MIDI, and listen to all MIDI channels
+  usb_midi.setStringDescriptor("ORBITA SWISS");  // seems to not  work
+  USBDevice.setManufacturerDescriptor("PLAYTRONICA                     ");
+  USBDevice.setProductDescriptor     ("ORBITA SWISS                    ");    // works
+*/
+
   // SETUP USB MIDI
   // Manual begin() is required on core without built-in support e.g. mbed rp2040
   if (!TinyUSBDevice.isInitialized()) { TinyUSBDevice.begin(0); }
-  usb_midi.setStringDescriptor("ORBITA BIG");
-  //USBDevice.setProductDescriptor     ("ORBITA SWISS                    ");    // TO TEST!
+  usb_midi.setStringDescriptor("ORBITA SWISS");
+  USBDevice.setManufacturerDescriptor("PLAYTRONICA                     ");
+  USBDevice.setProductDescriptor     ("ORBITA SWISS                    ");    // TO TEST!
 
 
   // Initialize MIDI, and listen to channel 1
   MIDI_USB.begin(1);  // cann also be omni// all channels: (MIDI_CHANNEL_OMNI);
   MIDI_USB.turnThruOff();
+  MIDI_USB.setHandleControlChange(handleControlChange);
   //MIDI_USB.setHandleNoteOn(handleNoteOn);
   //MIDI_USB.setHandleNoteOff(handleNoteOff);
-  MIDI_USB.setHandleControlChange(handleControlChange);
   MIDI.begin(1);  //listenign to MIDI Channel 1 or MIDI_CHANNEL_OMNI
   MIDI.turnThruOff();
 
@@ -240,11 +265,13 @@ void setup()
 #if DEBUG == 1
   Serial.begin(115200);
   //while (!Serial) delay(1);
-  delay(2000);
+  delay(4000);
   debugln("ORBITA BIG SWISS EDITION");
 #endif
 
-  loadSettingsFromMemory();
+  //loadSettingsFromMemory();
+  EEPROM.begin(512);
+  loadSettings();
 
   // SETUP ERIN MULTIPLEXER FOR MIDI CONNECTION
   pinMode(MULTIPLEX_A_PIN, OUTPUT);
@@ -271,8 +298,6 @@ void setup()
   digitalWrite(GATE2_PIN, LOW);
   digitalWrite(GATE3_PIN, LOW);
   digitalWrite(GATE4_PIN, LOW);
-
-
 
 
   // SETUP I2C BUS and DEVICES
@@ -559,7 +584,7 @@ void startMotor()
   currentMotorSpeed = 180;
   motorJustStarted = true;
   encoder.setEncoderPosition(MIN_MOTOR_SPEED);
-  display.print(MIN_MOTOR_SPEED);
+  display.print(1);
   display.writeDisplay();
 }
 
@@ -575,27 +600,34 @@ void updateMotor()
       if(currentMotorSpeed != 0){
         currentMotorSpeed = 0;
         analogWrite(MOTOR_PWM_PIN, 0);
+        debug("Motor Speed: "); debugln(currentMotorSpeed);
       }
     } 
     else {
-      
       if(currentMotorSpeed != targetMotorSpeed){
         if(currentMotorSpeed < targetMotorSpeed){
           if((targetMotorSpeed - currentMotorSpeed) > 3){
             currentMotorSpeed = currentMotorSpeed+3;
+            debug("Motor Speed: "); debugln(currentMotorSpeed);
+          } 
+          else {
+            currentMotorSpeed = targetMotorSpeed;
+            debug("Motor Speed: "); debugln(currentMotorSpeed);
           }
         }
         else if(motorJustStarted) {
           // wait a bit and then slow down
-          if((currentMotorSpeed - targetMotorSpeed) > 3){
-            currentMotorSpeed = currentMotorSpeed-3;
+          if((currentMotorSpeed - targetMotorSpeed) > 6){
+            currentMotorSpeed = currentMotorSpeed-6;
+            debug("Motor Speed: "); debugln(currentMotorSpeed);
           } else {
             currentMotorSpeed = targetMotorSpeed;
             motorJustStarted = false;
           }
         }
         else {
-          currentMotorSpeed = targetMotorSpeed;
+            currentMotorSpeed = targetMotorSpeed;
+            debug("Motor Speed: "); debugln(currentMotorSpeed);
         }
       }
       analogWrite(MOTOR_PWM_PIN, currentMotorSpeed);
@@ -803,13 +835,13 @@ int detect_color(uint8_t track)
 {
   int color_detected = -1;
 
-    if(lastMeasuredHue[track] > 250 || lastMeasuredHue[track] < 15){
+    if(lastMeasuredHue[track] > 250 || lastMeasuredHue[track] < 10){
         debug("MAGENTA");
         color_detected =  3;
     } else if(lastMeasuredHue[track] >= 15 && lastMeasuredHue[track] < 75){
         debug("RED");
         color_detected =  0;
-    } else if(lastMeasuredHue[track] >= 75 && lastMeasuredHue[track] < 150){
+    } else if(lastMeasuredHue[track] >= 80 && lastMeasuredHue[track] < 170){
         debug("YELLOW");
         color_detected =  1;
     } else  {
@@ -817,7 +849,7 @@ int detect_color(uint8_t track)
       color_detected =  2;
     }
 
-  debugln(" - Hue: ");
+  debug(" - Hue: ");
   debugln(lastMeasuredHue[track]);
 
   return color_detected;  //-> if we dont play a note we send -1
@@ -869,9 +901,9 @@ void setCV(uint8_t _track, int _cvVal)
 
 void playCV_MIDI_Pitch(uint8_t _track, uint8_t _note)
 {
-  //if(_note>34 && _note<93){
+  if(_note>=10 && _note<=70){
     setCV(_track, dac_PitchValues[_note-10]); // dac_values[6] = C4 -> input 16
-  //}
+  }
 }
 
 
@@ -879,7 +911,7 @@ void playCV_MIDI_Pitch(uint8_t _track, uint8_t _note)
 
 //////////////////////////////////////////////////////////////////////////////
 
-
+/*
 void generateNewSettingsFile()
 {
     //construct Filename
@@ -990,9 +1022,9 @@ void loadSettingsFromMemory()
       }
  
     }
-    /*while (i.available()) {
+    while (i.available()) {
       Serial.write(i.read());
-    }*/
+    }
     debugln("---------------");
     i.close();
 
@@ -1006,11 +1038,15 @@ void loadSettingsFromMemory()
     debugln("settings.txt does not exist, generating a new one");
     // make a new valid Settings.txt file
     generateNewSettingsFile();
+    //loadSettingsFromMemory();
+
   }
 }
 
+*/
 
 
+/*
 void saveSettingsToFile()
 {
     //construct Filename
@@ -1047,11 +1083,123 @@ void saveSettingsToFile()
       f.write(number, strlen(number));
       f.write("\n");
       f.close();
+
+      debugln("Wrote  Settings to Memory ");  
+    } 
+    else {
+      debugln("ERROR: could not find settings.txt file");
     }
-    debugln("Wrote  Settings to Memory ");  
+}
+
+*/
+
+
+
+
+
+
+
+
+
+void saveSettings()
+{
+  int addr = 0;
+  int val = 0;
+
+  // Write Version
+  addr = 222;
+  val = (int)(VERSION_NUMBER);
+  EEPROM.write(addr, val);
+  addr++;
+
+  // Write MIDI Notes
+  for (int t=0; t<4; t++){
+    for (int p=0; p<4; p++){
+      val = midiNotes[t][p];
+      EEPROM.write(addr, val);
+      addr++;
+    }
+  }
+
+  // Write CV Notes
+  for (int t=0; t<4; t++){
+    for (int p=0; p<4; p++){
+      val = cvNotes[t][p];
+      EEPROM.write(addr, val);
+      addr++;
+    }
+  }
+
+  // Write CV Mode
+  val = currentCVMode;
+  EEPROM.write(addr, val);
+  addr++;
+
+  
+  if (EEPROM.commit()) {
+    Serial.println("EEPROM successfully committed");
+  } else {
+    Serial.println("ERROR! EEPROM commit failed");
+  }
+
+  debugln("Wrote new Settings File ");  
 }
 
 
 
 
+void loadSettings()
+{
+  int addr = 222;
+  int val = EEPROM.read(addr);
+  addr++;
 
+  if(val == VERSION_NUMBER){
+    debug("Memory contains current Version number: ");
+    debugln(val);
+
+    // Read MIDI Notes
+    debug("Midi Notes: ");
+    for (int t=0; t<4; t++){
+      for (int p=0; p<4; p++){
+        val = EEPROM.read(addr);
+        if(val>=0 && val<=127) {
+          midiNotes[t][p] = val;
+          debug(val); debug(" ");
+        }
+        addr++;
+      }
+    }
+    debugln("");
+
+    // Read CV Notes
+    debug("CV Notes: ");
+    for (int t=0; t<4; t++){
+      for (int p=0; p<4; p++){
+        val = EEPROM.read(addr);
+        if(val>=10 && val<=70) {
+          cvNotes[t][p] = val;
+          debug(val); debug(" ");
+        }
+        addr++;
+      }
+    }
+    debugln("");
+
+    // Read CV Mode
+    val = currentCVMode;
+    val = EEPROM.read(addr);
+    if(val>=0 && val<=127) {
+      currentCVMode = val;
+      debug("Current CV Mode: "); debugln(val);
+
+    }
+    addr++;
+
+  } else {
+    debug("Memory doesnt contain currention Version Number: ");
+    debug(val);
+    debugln(" , writing New Memory");
+    saveSettings();
+  }
+}
