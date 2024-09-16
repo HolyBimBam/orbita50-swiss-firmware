@@ -80,20 +80,16 @@
 
       <group-row >
         <midi-spacer></midi-spacer>
+        <midi-button label="SAVE SETTINGS" chan="1" cc="53" value="127"  colour="#00FF00" label-scale="0.6">></midi-button>
         <midi-spacer></midi-spacer>
-        <h2>SAVE SETTINGS</h2>
+        <midi-button label="PITCH TO CV MODE" chan="1" cc="54" value="0"   colour="#FF9900" label-scale="0.6">></midi-button>
+        <midi-button label="COLOR TO CV MODE" chan="1" cc="54" value="1" colour="#FF9900" label-scale="0.6">></midi-button>
         <midi-spacer></midi-spacer>
-        <midi-button label="SAVE" chan="1" cc="53" value="127"  colour="#00FF00" label-scale="0.6">></midi-button>
+        <midi-button label="RESET MIDI PITCHES" chan="1" cc="54" value="66"   colour="#FF0099" label-scale="0.6">></midi-button>
         <midi-spacer></midi-spacer>
-        <midi-spacer></midi-spacer>
-        <midi-spacer></midi-spacer>
-        <h2>COLOR 2 CV ON</h2>
-        <midi-spacer></midi-spacer>
-        <midi-button label="COLOR TO CV MODE" chan="1" cc="54" value="127" colour="#00FF00" label-scale="0.6">></midi-button>
-        <midi-button label="PITCH TO CV MODE" chan="1" cc="54" value="0"   colour="#00FF00" label-scale="0.6">></midi-button>
-        <midi-spacer></midi-spacer>
-        <midi-spacer></midi-spacer>
-        <midi-spacer></midi-spacer>
+        <midi-slider label="MIN\nSPEED\n%v" chan="1" cc="55" min="50" max= "127" colour="#FFFF00" >></midi-slider>
+        <midi-slider label="MAX\nSPEED\n%v" chan="1" cc="56" min="0" max= "90" colour="#FFFF00" >></midi-slider>
+        <midi-button label="RESET MOTOR" chan="1" cc="54" value="77"   colour="#FFFF00" label-scale="0.6"></midi-button>
         <midi-spacer></midi-spacer>
       </group-row>
 

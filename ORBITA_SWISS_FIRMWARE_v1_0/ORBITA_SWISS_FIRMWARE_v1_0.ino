@@ -19,6 +19,8 @@
 
 /////// SETTINGS ///////////////////////////
 
+#define VERSION_NUMBER 13
+
 #define DEBUG 1
 
 #define BRIGHTNESS 100
@@ -27,13 +29,15 @@
 #define BUTTON_UPDATE_RATE 40
 #define MOTOR_UPDATE_RATE 400   // for now to prevent too quick changes
 
-#define MIN_MOTOR_SPEED 118
+#define MIN_MOTOR_SPEED 115
 #define MAX_MOTOR_SPEED 140
 
 uint8_t midiNotes[4][4] = {{36,37,38,39}, 
                            {40,41,42,43}, 
                            {44,45,46,47}, 
                            {48,49,50,51}};
+
+                           
 
 uint8_t cvNotes[4][4] = {{16,28,40,52}, 
                          {28,32,35,40}, 
@@ -55,8 +59,10 @@ uint16_t dac_PitchValues[] = {
     3686, 3755, 3823, 3891, 3959, 4028
 }; // dac_values[6] = C4 -> input 16
 
-
-#define VERSION_NUMBER 11
+uint8_t midiNotesChromatic[4][4] = {{36,37,38,39}, 
+                           {40,41,42,43}, 
+                           {44,45,46,47}, 
+                           {48,49,50,51}};
 
 ////////////////////////////////////////////
 
@@ -177,6 +183,9 @@ bool hallSensorState[4] = {false, false, false, false,};
 hsv hsv_color;
 rgb rgb_color;
 char buff[288];
+uint8_t motorMinSpeed = MIN_MOTOR_SPEED;
+uint8_t motorMaxSpeed = MAX_MOTOR_SPEED;
+
 
 ////////////////////////////////////////////////////////
 
@@ -207,13 +216,36 @@ void handleControlChange(byte channel, byte number, byte value)   // For Remote 
     } 
   }
   else if(number == 54){
-    if(value>126)  {
+    if(value == 1)  {
       currentCVMode = 1;     // CV COLOR MODe
       debugln("Changed to Color CV Mode");
     }
-    else {
+    else if (value == 0) {
       currentCVMode = 0;               // CV PITCH MOE
       debugln("Changed to Pitch CV Mode");
+    }
+    else if (value == 66){
+      debugln("Resetting MIDI Pitches to Chromatic");
+      for (int t=0; t<4; t++){
+        for (int p=0; p<4; p++){
+          midiNotes[t][p] = midiNotesChromatic[t][p];
+        }
+      }
+    }
+    else if (value == 77){
+      debugln("Resetting MOTOR VALUES");
+      motorMinSpeed = MIN_MOTOR_SPEED;
+      motorMaxSpeed = MAX_MOTOR_SPEED;
+    }
+  }
+  else if(number == 55){
+    if(value >=50 && value<=130){
+      motorMinSpeed = value;
+    }
+  }
+  else if(number == 56){
+    if(value >=0 && value<=90){
+      motorMaxSpeed = value+127;
     }
   }
 }
@@ -453,16 +485,16 @@ void updateEncoder()
 
   int32_t new_position = encoder.getEncoderPosition();
   // did we move arounde?
-  if (encoder_position != new_position && new_position >= MIN_MOTOR_SPEED && new_position <= MAX_MOTOR_SPEED) {
+  if (encoder_position != new_position && new_position >= motorMinSpeed && new_position <= motorMaxSpeed) {
     debugln(new_position);         // display new position
     encoder_position = new_position;      // and save for next round
-    display.print(encoder_position-MIN_MOTOR_SPEED+1);
+    display.print(encoder_position-motorMinSpeed+1);
     display.writeDisplay();
-  } else if (new_position < MIN_MOTOR_SPEED){
-    encoder_position = MIN_MOTOR_SPEED;
+  } else if (new_position < motorMinSpeed){
+    encoder_position = motorMinSpeed;
     encoder.setEncoderPosition(encoder_position);
-  } else if(new_position > MAX_MOTOR_SPEED){
-    encoder_position = MAX_MOTOR_SPEED;
+  } else if(new_position > motorMaxSpeed){
+    encoder_position = motorMaxSpeed;
     encoder.setEncoderPosition(encoder_position);
   }
 
@@ -579,11 +611,11 @@ void stopMotor()
 void startMotor()
 {
   motorIsOn = true;
-  targetMotorSpeed = MIN_MOTOR_SPEED;
+  targetMotorSpeed = motorMinSpeed;
   analogWrite(MOTOR_PWM_PIN, 180);
   currentMotorSpeed = 180;
   motorJustStarted = true;
-  encoder.setEncoderPosition(MIN_MOTOR_SPEED);
+  encoder.setEncoderPosition(motorMinSpeed);
   display.print(1);
   display.writeDisplay();
 }
@@ -623,6 +655,7 @@ void updateMotor()
           } else {
             currentMotorSpeed = targetMotorSpeed;
             motorJustStarted = false;
+            debug("Motor Speed: "); debugln(currentMotorSpeed);
           }
         }
         else {
@@ -835,15 +868,15 @@ int detect_color(uint8_t track)
 {
   int color_detected = -1;
 
-    if(lastMeasuredHue[track] > 250 || lastMeasuredHue[track] < 10){
-        debug("MAGENTA");
-        color_detected =  3;
-    } else if(lastMeasuredHue[track] >= 15 && lastMeasuredHue[track] < 75){
-        debug("RED");
-        color_detected =  0;
-    } else if(lastMeasuredHue[track] >= 80 && lastMeasuredHue[track] < 170){
-        debug("YELLOW");
-        color_detected =  1;
+    if(lastMeasuredHue[track] > 280 || lastMeasuredHue[track] < 10){
+      debug("MAGENTA");
+      color_detected =  3;
+    } else if(lastMeasuredHue[track] >= 10 && lastMeasuredHue[track] < 70){
+      debug("RED");
+      color_detected =  0;
+    } else if(lastMeasuredHue[track] >= 70 && lastMeasuredHue[track] < 170){
+      debug("YELLOW");
+      color_detected =  1;
     } else  {
       debug("BLUE");
       color_detected =  2;
@@ -1135,6 +1168,14 @@ void saveSettings()
   EEPROM.write(addr, val);
   addr++;
 
+  // write Motor Settings
+  val = motorMinSpeed;
+  EEPROM.write(addr, val);
+  addr++;
+
+  val = motorMaxSpeed;
+  EEPROM.write(addr, val);
+  addr++;
   
   if (EEPROM.commit()) {
     Serial.println("EEPROM successfully committed");
@@ -1195,6 +1236,24 @@ void loadSettings()
 
     }
     addr++;
+
+    // read Motor Settings
+    val =  EEPROM.read(addr);
+    if(val>= 50 && val<=130){
+      motorMinSpeed = val;
+      debug("motorMinSpeed: "); debugln(val);
+    }
+    addr++;
+
+    val =  EEPROM.read(addr);
+    if(val>= 130 && val<=255){
+      motorMaxSpeed = val;
+      debug("motorMaxSpeed: "); debugln(val);
+    }
+    addr++;
+
+
+
 
   } else {
     debug("Memory doesnt contain currention Version Number: ");
