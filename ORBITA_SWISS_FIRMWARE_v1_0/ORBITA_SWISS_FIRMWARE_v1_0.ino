@@ -1,7 +1,8 @@
-#include <Adafruit_TinyUSB.h>   // has to be first item in list
+#include <Adafruit_TinyUSB.h>   // has to be first item in list?
 #include <Arduino.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
+#include "hardware/pwm.h"
 #include <MIDI.h>
 #include <Adafruit_MCP4728.h>
 #include <Wire.h>
@@ -19,7 +20,9 @@
 
 /////// SETTINGS ///////////////////////////
 
-#define VERSION_NUMBER 13
+#define VERSION_NUMBER 3
+
+#define VEML_TRIGGER_MODE 1
 
 #define DEBUG 1
 
@@ -29,8 +32,8 @@
 #define BUTTON_UPDATE_RATE 40
 #define MOTOR_UPDATE_RATE 400   // for now to prevent too quick changes
 
-#define MIN_MOTOR_SPEED 115
-#define MAX_MOTOR_SPEED 140
+#define MIN_MOTOR_SPEED 145
+#define MAX_MOTOR_SPEED 220
 
 uint8_t midiNotes[4][4] = {{36,37,38,39}, 
                            {40,41,42,43}, 
@@ -185,6 +188,7 @@ rgb rgb_color;
 char buff[288];
 uint8_t motorMinSpeed = MIN_MOTOR_SPEED;
 uint8_t motorMaxSpeed = MAX_MOTOR_SPEED;
+static int lastMeasuredHue[4]={50,50,50,50};
 
 
 ////////////////////////////////////////////////////////
@@ -239,12 +243,12 @@ void handleControlChange(byte channel, byte number, byte value)   // For Remote 
     }
   }
   else if(number == 55){
-    if(value >=50 && value<=130){
-      motorMinSpeed = value;
+    if(value >=0 && value<=127){
+      motorMinSpeed = value+127;
     }
   }
   else if(number == 56){
-    if(value >=0 && value<=90){
+    if(value >=0 && value<=127){
       motorMaxSpeed = value+127;
     }
   }
@@ -317,8 +321,18 @@ void setup()
   // SETUP MOTOR PINS
   pinMode(MOTOR_DIR_PIN, OUTPUT);
   digitalWrite(MOTOR_DIR_PIN, HIGH);
-  pinMode(MOTOR_PWM_PIN, OUTPUT);
-  analogWrite(MOTOR_PWM_PIN, 0);
+  //pinMode(MOTOR_PWM_PIN, OUTPUT);
+  //analogWrite(MOTOR_PWM_PIN, 0);
+  
+    pwm_config config = pwm_get_default_config();
+    pwm_config_set_clkdiv(&config, 1.f);        //HBB: was (&config, 8.f), the smaller the number, the more usable PWM speeds we have
+    pwm_config_set_wrap(&config, 255);
+    pwm_init(pwm_gpio_to_slice_num(MOTOR_PWM_PIN), &config, true);
+    gpio_set_function(MOTOR_PWM_PIN, GPIO_FUNC_PWM);
+    pwm_set_gpio_level(MOTOR_PWM_PIN, 0);
+
+
+
 
 
   // SETUP GATES
@@ -382,23 +396,35 @@ void setup()
   pixel4.setChannel(1);
 
   pixel1.setChannel(0);
-  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor"); }
-  else { RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); }
+  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor 1"); }
+  else { 
+    if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
+    else RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); 
+  }
   pixel1.setChannel(1);
 
   pixel2.setChannel(0);
-  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor"); }
-  else { RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); }
+  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor 2"); }
+  else { 
+    if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
+    else RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
+  }
   pixel2.setChannel(1);
 
   pixel3.setChannel(0);
-  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor"); }
-  else { RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); }
+  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor 3"); }
+  else { 
+    if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
+    else RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
+  }
   pixel3.setChannel(1);
 
   pixel4.setChannel(0);
-  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor"); }
-  else { RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); }
+  if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor 4"); }
+  else { 
+    if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
+    else RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
+  }
   pixel4.setChannel(1);
 
 
@@ -434,10 +460,12 @@ void loop()
   TinyUSBDevice.task();
   #endif
 
-  updateColorSensor(0);
-  updateColorSensor(1);
-  updateColorSensor(2);
-  updateColorSensor(3);
+  if(VEML_TRIGGER_MODE == 0) {
+    updateColorSensor(0);
+    updateColorSensor(1);
+    updateColorSensor(2);
+    updateColorSensor(3);
+  }
 
   updateHallSensors();
   updateEncoder();
@@ -600,7 +628,8 @@ void stopMotor()
 {
   motorIsOn = false;
   targetMotorSpeed = 0;
-  analogWrite(MOTOR_PWM_PIN, 0);
+  //analogWrite(MOTOR_PWM_PIN, 0);
+  pwm_set_gpio_level(MOTOR_PWM_PIN, 0);
   encoder.setEncoderPosition(0);
   display.print(targetMotorSpeed);
   display.writeDisplay();
@@ -612,8 +641,9 @@ void startMotor()
 {
   motorIsOn = true;
   targetMotorSpeed = motorMinSpeed;
-  analogWrite(MOTOR_PWM_PIN, 180);
-  currentMotorSpeed = 180;
+  //analogWrite(MOTOR_PWM_PIN, 180);
+  pwm_set_gpio_level(MOTOR_PWM_PIN, 200);
+  currentMotorSpeed = 200;
   motorJustStarted = true;
   encoder.setEncoderPosition(motorMinSpeed);
   display.print(1);
@@ -631,7 +661,8 @@ void updateMotor()
     if(!motorIsOn){  // MOTOR is OFF
       if(currentMotorSpeed != 0){
         currentMotorSpeed = 0;
-        analogWrite(MOTOR_PWM_PIN, 0);
+        //analogWrite(MOTOR_PWM_PIN, 0);
+        pwm_set_gpio_level(MOTOR_PWM_PIN, 0);
         debug("Motor Speed: "); debugln(currentMotorSpeed);
       }
     } 
@@ -663,7 +694,8 @@ void updateMotor()
             debug("Motor Speed: "); debugln(currentMotorSpeed);
         }
       }
-      analogWrite(MOTOR_PWM_PIN, currentMotorSpeed);
+      //analogWrite(MOTOR_PWM_PIN, currentMotorSpeed);
+      pwm_set_gpio_level(MOTOR_PWM_PIN, currentMotorSpeed);
     }
     lastUpdate = millis();
   }
@@ -703,12 +735,16 @@ bool readHallSensorX(uint8_t track)
   // Check if pin 4 is pulled low (magnet event)
   if (isHallSensorHigh(track)) {
     if(!hallSensorState[track]) {
-      debug("Magnet Detected T"); debugln(track);
       hallSensorState[track] = true;
       
-      uint8_t note = detect_color(track);
-
       if(trackIsOn[track]) {
+
+        debug("Magnet Detected T"); debugln(track);
+
+        uint8_t note;
+        if(VEML_TRIGGER_MODE) note = detect_color_TriggerMode(track);
+        else note = detect_color(track);
+
         turnGateOnOff(track, true);
 
         if(lastNote[track] != -1) {
@@ -720,6 +756,12 @@ bool readHallSensorX(uint8_t track)
           if(currentCVMode == 0) playCV_MIDI_Pitch(track, cvNotes[track][note]);
           lastNote[track] = midiNotes[track][note];
         };
+      } else {
+        if(lastNote[track] != -1) {
+          sendNoteOff(lastNote[track]);
+          turnGateOnOff(track, false);
+          lastNote[track] = -1;
+        }
       }
 
     }
@@ -812,7 +854,8 @@ hsv rgb2hsv(rgb in)
 
 
 
-static int lastMeasuredHue[4]={50,50,50,50};
+
+
 
 void updateColorSensor(uint8_t track) 
 {
@@ -822,10 +865,14 @@ void updateColorSensor(uint8_t track)
   else if(track == 2) pixel3.setChannel(0);
   else if(track == 3) pixel4.setChannel(0);
 
+  if(VEML_TRIGGER_MODE) {
+    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
+    delay(42);
+  }
 
-  rgb_color.r = RGBWSensor.getRed() / 24000.0;
-  rgb_color.g = RGBWSensor.getGreen() / 24000.0;
-  rgb_color.b = RGBWSensor.getBlue() / 24000.0;
+  rgb_color.r = RGBWSensor.getRed() / 16496.0;
+  rgb_color.g = RGBWSensor.getGreen() / 16496.0;
+  rgb_color.b = RGBWSensor.getBlue() / 16496.0;
   hsv_color = rgb2hsv(rgb_color);
 
 
@@ -868,7 +915,7 @@ int detect_color(uint8_t track)
 {
   int color_detected = -1;
 
-    if(lastMeasuredHue[track] > 280 || lastMeasuredHue[track] < 10){
+    if(lastMeasuredHue[track] > 270 || lastMeasuredHue[track] < 10){
       debug("MAGENTA");
       color_detected =  3;
     } else if(lastMeasuredHue[track] >= 10 && lastMeasuredHue[track] < 70){
@@ -881,13 +928,20 @@ int detect_color(uint8_t track)
       debug("BLUE");
       color_detected =  2;
     }
-
   debug(" - Hue: ");
   debugln(lastMeasuredHue[track]);
 
   return color_detected;  //-> if we dont play a note we send -1
 }
 
+
+
+
+int detect_color_TriggerMode(uint8_t track) 
+{
+  updateColorSensor(track);
+  return (detect_color(track));  //-> if we dont play a note we send -1
+}
 
 
 void turnGateOnOff(uint8_t track, bool onf){
