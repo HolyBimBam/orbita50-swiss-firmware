@@ -13,7 +13,6 @@
 #include "TCA9555.h"
 #include <tca9544a.h>
 #include "veml6040.h"
-//#include <LittleFS.h>
 #include <EEPROM.h>
 
 // ERIN USES WSW25Q16 FLASH with 2MB
@@ -77,9 +76,9 @@ uint16_t dac_PitchValues[] = {
 }; // dac_values[6] = C4 -> input 16
 
 uint8_t midiNotesChromatic[4][4] = {{36,37,38,39}, 
-                           {40,41,42,43}, 
-                           {44,45,46,47}, 
-                           {48,49,50,51}};
+                                    {40,41,42,43}, 
+                                    {44,45,46,47}, 
+                                    {48,49,50,51}};
 
 ////////////////////////////////////////////
 
@@ -1009,194 +1008,6 @@ void playCV_MIDI_Pitch(uint8_t _track, uint8_t _note)
 
 
 //////////////////////////////////////////////////////////////////////////////
-
-/*
-void generateNewSettingsFile()
-{
-    //construct Filename
-    String filename = "settings.txt";
-    char number[2] = {'0','0'};
-
-    File f = LittleFS.open(filename, "w");
-    if (f) {
-      f.write("1.0.3");                           // change to define
-      f.write("\n");
-
-      for (int t=0; t<4; t++){
-        for (int p=0; p<4; p++){
-          number[0] = '0';
-          number[1] = '0';
-          (String(midiNotes[t][p])).toCharArray(number, 3);   
-          f.write(number, strlen(number));
-          f.write("\n");
-        }
-      }
-      for (int t=0; t<4; t++){
-        for (int p=0; p<4; p++){
-          number[0] = '0';
-          number[1] = '0';
-          (String(cvNotes[t][p])).toCharArray(number, 3);   
-          f.write(number, strlen(number));
-          f.write("\n");
-        }
-      }
-
-      number[0] = '0';
-      number[1] = '0';
-      (String(currentCVMode)).toCharArray(number, 3);   
-      f.write(number, strlen(number));
-      f.write("\n");
-      f.close();
-    }
-    debugln("Wrote new Settings File ");  
-}
-
-
-
-
-void loadSettingsFromMemory()
-{
-  uint8_t newIntNumber = 0;
-  bool fileChanged = false;
-  
-  File i = LittleFS.open("settings.txt", "r");
-  if (i) 
-  {
-    debugln("Reading settings.txt:");
-    bzero(buff, 288);
-
-    if (i.read((uint8_t *)buff, 63))  // if there is enough in mem to fill buffer
-    {            
-      String newString = strtok(buff, "\n");
-      debug("Firmware Version in Memory: ");
-      debugln(newString);
-      // if not currrent Version generate new Settings File
-      debug("loading Midi Notes: ");
-
-      for (int t=0; t<4; t++){
-        for (int p=0; p<4; p++)
-        {
-          newIntNumber = ((String)strtok(NULL, "\n")).toInt();
-          if(newIntNumber>=0 && newIntNumber<=127){
-            debug("t");debug(t);debug("-");debug("p");debug(p);debug(": ");
-            debugln(newIntNumber);
-            midiNotes[t][p] = newIntNumber;
-          } else {
-            debugln("No valid Data for MIDI Note "); debug("t");debug(t);debug("-");debug("p");debug(p);debug(": ");
-            midiNotes[t][p] = 40+t*4+p;
-            fileChanged = true;
-          }
-        }
-      }
-
-      debug("loading CV Notes: ");
-
-      for (int t=0; t<4; t++){
-        for (int p=0; p<4; p++)
-        {
-          newIntNumber = ((String)strtok(NULL, "\n")).toInt();
-          if(newIntNumber>=34 && newIntNumber<=93){   // C4 = 0.5 V = step 6 - 40-C4-6  ->34-F#3-0  -> 34+(5+12)-1 Steps: 93
-            debug("t");debug(t);debug("-");debug("p");debug(p);debug(": ");
-            debugln(newIntNumber);
-            cvNotes[t][p] = newIntNumber;
-          } else {
-            debugln("No valid Data for CV Note "); debug("t");debug(t);debug("-");debug("p");debug(p);debug(": ");
-            cvNotes[t][p] = 40+t*4+p;
-            fileChanged = true;
-          }
-        }
-      }
-
-      debug("loading CV Mode: ");
-
-      newIntNumber = ((String)strtok(NULL, "\n")).toInt();
-      if(newIntNumber>=0 && newIntNumber<=2){
-        debug("Mode: ");
-        debugln(newIntNumber);
-        currentCVMode = newIntNumber;
-      } else {
-        debugln("No valid Data for CV MODE "); 
-        currentCVMode=0;;
-        fileChanged = true;
-      }
- 
-    }
-    while (i.available()) {
-      Serial.write(i.read());
-    }
-    debugln("---------------");
-    i.close();
-
-    if(fileChanged == true){
-      // SAVE CURRENT (corrected) SETTINGS
-      debugln("Found invalid Data, Saving changed Settings to file settings.txt");
-      saveSettingsToFile();
-    }
-
-  } else {
-    debugln("settings.txt does not exist, generating a new one");
-    // make a new valid Settings.txt file
-    generateNewSettingsFile();
-    //loadSettingsFromMemory();
-
-  }
-}
-
-*/
-
-
-/*
-void saveSettingsToFile()
-{
-    //construct Filename
-    String filename = "settings.txt";
-    char number[2] = {'0','0'};
-
-    File f = LittleFS.open(filename, "w");
-    if (f) {
-      f.write(VERSION_NUMBER);                           // change to define
-      f.write("\n");
-
-      for (int t=0; t<4; t++){
-        for (int p=0; p<4; p++){
-          number[0] = '0';
-          number[1] = '0';
-          (String(midiNotes[t][p])).toCharArray(number, 3);   
-          f.write(number, strlen(number));
-          f.write("\n");
-        }
-      }
-      for (int t=0; t<4; t++){
-        for (int p=0; p<4; p++){
-          number[0] = '0';
-          number[1] = '0';
-          (String(cvNotes[t][p])).toCharArray(number, 3);   
-          f.write(number, strlen(number));
-          f.write("\n");
-        }
-      }
-
-      number[0] = '0';
-      number[1] = '0';
-      (String(currentCVMode)).toCharArray(number, 3);   
-      f.write(number, strlen(number));
-      f.write("\n");
-      f.close();
-
-      debugln("Wrote  Settings to Memory ");  
-    } 
-    else {
-      debugln("ERROR: could not find settings.txt file");
-    }
-}
-
-*/
-
-
-
-
-
-
 
 
 
