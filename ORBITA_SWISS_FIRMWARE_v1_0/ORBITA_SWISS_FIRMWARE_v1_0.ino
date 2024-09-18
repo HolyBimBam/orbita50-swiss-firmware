@@ -188,8 +188,8 @@ rgb rgb_color;
 char buff[288];
 uint8_t motorMinSpeed = MIN_MOTOR_SPEED;
 uint8_t motorMaxSpeed = MAX_MOTOR_SPEED;
-static int lastMeasuredHue[4]={50,50,50,50};
-
+static int lastMeasuredHue[4] = {50,50,50,50};
+long sensorReadOutTime[4] = {-1,-1,-1,-1};
 
 ////////////////////////////////////////////////////////
 
@@ -743,7 +743,7 @@ bool readHallSensorX(uint8_t track)
 
         uint8_t note;
         if(VEML_TRIGGER_MODE) note = detect_color_TriggerMode(track);
-        else note = detect_color(track);
+        else note = detect_color_fromHue(track);
 
         turnGateOnOff(track, true);
 
@@ -868,6 +868,7 @@ void updateColorSensor(uint8_t track)
   if(VEML_TRIGGER_MODE) {
     RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
     delay(42);
+    sensorReadOutTime[track]=millis()+42;
   }
 
   rgb_color.r = RGBWSensor.getRed() / 16496.0;
@@ -901,17 +902,15 @@ void updateColorSensor(uint8_t track)
   debug(" val: "), debugln(hsv_color.v);
 */
 
-
-
+  // set back to other channel so we can read other sensors with same address
   if(track == 0) pixel1.setChannel(1);
   else if(track == 1) pixel2.setChannel(1);
   else if(track == 2) pixel3.setChannel(1);
   else if(track == 3) pixel4.setChannel(1);
-
 }
 
 
-int detect_color(uint8_t track) 
+int detect_color_fromHue(uint8_t track) 
 {
   int color_detected = -1;
 
@@ -940,7 +939,7 @@ int detect_color(uint8_t track)
 int detect_color_TriggerMode(uint8_t track) 
 {
   updateColorSensor(track);
-  return (detect_color(track));  //-> if we dont play a note we send -1
+  return (detect_color_fromHue(track));  //-> if we dont play a note we send -1
 }
 
 
