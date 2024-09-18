@@ -35,6 +35,13 @@
 #define MIN_MOTOR_SPEED 145
 #define MAX_MOTOR_SPEED 220
 
+
+#define START_HUE_RED     10 
+#define START_HUE_YELLOW  70 
+#define START_HUE_BLUE    170 
+#define START_HUE_MAGENTA 270 
+
+
 uint8_t midiNotes[4][4] = {{36,37,38,39}, 
                            {40,41,42,43}, 
                            {44,45,46,47}, 
@@ -46,6 +53,13 @@ uint8_t cvNotes[4][4] = {{16,28,40,52},
                          {28,32,35,40}, 
                          {28,31,35,40}, 
                          {28,32,35,37}};
+
+
+uint16_t colorStartHueValues[4][4] = {{START_HUE_RED, START_HUE_YELLOW, START_HUE_BLUE, START_HUE_MAGENTA}, 
+                                      {START_HUE_RED, START_HUE_YELLOW, START_HUE_BLUE, START_HUE_MAGENTA}, 
+                                      {START_HUE_RED, START_HUE_YELLOW, START_HUE_BLUE, START_HUE_MAGENTA}, 
+                                      {START_HUE_RED, START_HUE_YELLOW, START_HUE_BLUE, START_HUE_MAGENTA}};
+
 
 uint16_t dac_PitchValues[] = {
     //Octave -1 (F#3 to B3)
@@ -913,14 +927,13 @@ void updateColorSensor(uint8_t track)
 int detect_color_fromHue(uint8_t track) 
 {
   int color_detected = -1;
-
-    if(lastMeasuredHue[track] > 270 || lastMeasuredHue[track] < 10){
+    if(lastMeasuredHue[track] > START_HUE_MAGENTA || lastMeasuredHue[track] < START_HUE_RED){
       debug("MAGENTA");
       color_detected =  3;
-    } else if(lastMeasuredHue[track] >= 10 && lastMeasuredHue[track] < 70){
+    } else if(lastMeasuredHue[track] >= START_HUE_RED && lastMeasuredHue[track] < START_HUE_YELLOW){
       debug("RED");
       color_detected =  0;
-    } else if(lastMeasuredHue[track] >= 70 && lastMeasuredHue[track] < 170){
+    } else if(lastMeasuredHue[track] >= START_HUE_YELLOW && lastMeasuredHue[track] < START_HUE_BLUE){
       debug("YELLOW");
       color_detected =  1;
     } else  {
