@@ -1,3 +1,13 @@
+// ORBITA SWISS EDITION FIRMWARE
+//
+// written 2024 by STEFFEN SENNERT 
+// for PLAYTRONICA
+//
+// SELECT: RP2040 generic (use variant file)
+// ERIN USES WSW25Q16 FLASH with 2MB
+
+
+
 #include <Adafruit_TinyUSB.h>   // has to be first item in list?
 #include <Arduino.h>
 #include "pico/stdlib.h"
@@ -15,15 +25,13 @@
 #include "veml6040.h"
 #include <EEPROM.h>
 
-// ERIN USES WSW25Q16 FLASH with 2MB
 
 /////// SETTINGS ///////////////////////////
 
 #define VERSION_NUMBER 3
-
-#define VEML_TRIGGER_MODE 1
-
 #define DEBUG 1
+
+//#define VEML_TRIGGER_MODE 1
 
 #define BRIGHTNESS 100
 #define BUTTON_COLOR pixels.Color(255, 80, 5)
@@ -40,13 +48,12 @@
 #define START_HUE_BLUE    170 
 #define START_HUE_MAGENTA 270 
 
+#define MIDI_NOTE_LENGTH 100
 
 uint8_t midiNotes[4][4] = {{36,37,38,39}, 
                            {40,41,42,43}, 
                            {44,45,46,47}, 
-                           {48,49,50,51}};
-
-                           
+                           {48,49,50,51}};         
 
 uint8_t cvNotes[4][4] = {{16,28,40,52}, 
                          {28,32,35,40}, 
@@ -110,7 +117,6 @@ uint8_t midiNotesChromatic[4][4] = {{36,37,38,39},
 #define PIXEL4_ADDR 0x74
 
 
-
 ////////////////// PINOUTS //////////////////
 
 #define MIDI_TX_PIN 4
@@ -157,6 +163,9 @@ typedef struct {
     double v;       // a fraction between 0 and 1
 } hsv;
 
+hsv hsv_color;
+rgb rgb_color;
+
 
 ////////////////////////////////////////////////////////
 
@@ -173,7 +182,6 @@ VEML6040 RGBWSensor;
 Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 
-
 #define PIN_SERIAL2_TX (4u)
 #define PIN_SERIAL2_RX (5u)
 
@@ -181,8 +189,6 @@ Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 Adafruit_USBD_MIDI usb_midi;
 MIDI_CREATE_INSTANCE(Adafruit_USBD_MIDI, usb_midi, MIDI_USB);
 MIDI_CREATE_INSTANCE(HardwareSerial, Serial2, MIDI)  // USB HOST IO via UART PIN 4/5
-
-
 
 
 
@@ -196,13 +202,13 @@ uint8_t currentCVMode = 0;
 int targetMotorSpeed = 0;
 int32_t encoder_position;
 bool hallSensorState[4] = {false, false, false, false,};
-hsv hsv_color;
-rgb rgb_color;
 char buff[288];
 uint8_t motorMinSpeed = MIN_MOTOR_SPEED;
 uint8_t motorMaxSpeed = MAX_MOTOR_SPEED;
 static int lastMeasuredHue[4] = {50,50,50,50};
 long sensorReadOutTime[4] = {-1,-1,-1,-1};
+int lastNote[4] = {-1,-1,-1,-1};
+
 
 ////////////////////////////////////////////////////////
 
@@ -326,26 +332,9 @@ void setup()
   pinMode(MULTIPLEX_A_PIN, OUTPUT);
   pinMode(MULTIPLEX_B_PIN, OUTPUT);
   pinMode(MULTIPLEX_INH_PIN, OUTPUT);
-  digitalWrite(MULTIPLEX_A_PIN, HIGH);  //HIGH
-  digitalWrite(MULTIPLEX_B_PIN, LOW);   //LOW
-  digitalWrite(MULTIPLEX_INH_PIN, LOW); //LOW 
-
-
-  // SETUP MOTOR PINS
-  pinMode(MOTOR_DIR_PIN, OUTPUT);
-  digitalWrite(MOTOR_DIR_PIN, HIGH);
-  //pinMode(MOTOR_PWM_PIN, OUTPUT);
-  //analogWrite(MOTOR_PWM_PIN, 0);
-  
-    pwm_config config = pwm_get_default_config();
-    pwm_config_set_clkdiv(&config, 1.f);        //HBB: was (&config, 8.f), the smaller the number, the more usable PWM speeds we have
-    pwm_config_set_wrap(&config, 255);
-    pwm_init(pwm_gpio_to_slice_num(MOTOR_PWM_PIN), &config, true);
-    gpio_set_function(MOTOR_PWM_PIN, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(MOTOR_PWM_PIN, 0);
-
-
-
+  digitalWrite(MULTIPLEX_A_PIN, HIGH);  // for MIDI: HIGH
+  digitalWrite(MULTIPLEX_B_PIN, LOW);   // for MIDI: LOW
+  digitalWrite(MULTIPLEX_INH_PIN, LOW); // LOW to turn Output on
 
 
   // SETUP GATES
@@ -411,32 +400,29 @@ void setup()
   pixel1.setChannel(0);
   if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor 1"); }
   else { 
-    if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
-    else RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); 
+    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE); 
   }
   pixel1.setChannel(1);
 
   pixel2.setChannel(0);
   if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor 2"); }
   else { 
-    if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
-    else RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
+    //if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
+    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
   }
   pixel2.setChannel(1);
 
   pixel3.setChannel(0);
   if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor 3"); }
   else { 
-    if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
-    else RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
+    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
   }
   pixel3.setChannel(1);
 
   pixel4.setChannel(0);
   if(!RGBWSensor.begin()) { debugln("ERROR: couldn't detect the sensor 4"); }
   else { 
-    if(VEML_TRIGGER_MODE) RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
-    else RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
+    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_AF_AUTO + VEML6040_SD_ENABLE);   
   }
   pixel4.setChannel(1);
 
@@ -462,6 +448,7 @@ void setup()
 }
 
 
+
 /////// LOOP /////////////////////////////////////////////////
 
 
@@ -473,18 +460,19 @@ void loop()
   TinyUSBDevice.task();
   #endif
 
-  if(VEML_TRIGGER_MODE == 0) {
-    updateColorSensor(0);
-    updateColorSensor(1);
-    updateColorSensor(2);
-    updateColorSensor(3);
-  }
+  readHallSensor(0);
+  readHallSensor(1);
+  readHallSensor(2);
+  readHallSensor(3);
 
-  updateHallSensors();
+  updateColorSensor(0);
+  updateColorSensor(1);
+  updateColorSensor(2);
+  updateColorSensor(3);
+
   updateEncoder();
   updateButtons();
-  updateMotor();
-  //updateMIDIBuffer();
+  updateNoteOffQueue();
 
   // read any new MIDI messages
   while (MIDI_USB.read()) {}
@@ -494,225 +482,17 @@ void loop()
 
 void setup1()
 {
-
+  setupMotor();
 }
 
 
 void loop1()
 {
-
+  updateMotor();
 }
 
 
 ////////////////////////////////////////////////////////
-
-
-
-void updateEncoder() 
-{
-  static bool enc_ButtonState = false;
-
-  if (! encoder.digitalRead(ENCODER_SWITCH)) {
-    if(!enc_ButtonState){
-      debugln("Encoder Switch pressed!");
-      enc_ButtonState = true;
-      if(motorIsOn) stopMotor();
-      else startMotor();
-    }
-  } else if (enc_ButtonState){
-      debugln("Encoder Switch released");
-      enc_ButtonState = false;
-  }
-
-  int32_t new_position = encoder.getEncoderPosition();
-  // did we move arounde?
-  if (encoder_position != new_position && new_position >= motorMinSpeed && new_position <= motorMaxSpeed) {
-    debugln(new_position);         // display new position
-    encoder_position = new_position;      // and save for next round
-    display.print(encoder_position-motorMinSpeed+1);
-    display.writeDisplay();
-  } else if (new_position < motorMinSpeed){
-    encoder_position = motorMinSpeed;
-    encoder.setEncoderPosition(encoder_position);
-  } else if(new_position > motorMaxSpeed){
-    encoder_position = motorMaxSpeed;
-    encoder.setEncoderPosition(encoder_position);
-  }
-
-  targetMotorSpeed = encoder_position;
-}
-
-
-
-void updateLEDs()
-{
-  for(int i=0; i<4; i++) { // For each pixel...
-    if(trackIsOn[i]) {
-      switch(i){
-        case 0:
-          pixels.setPixelColor(3, BUTTON_COLOR);
-          pixels.setPixelColor(16, pixels.Color(255, 255, 255));
-          pixels.setPixelColor(18, pixels.Color(255, 255, 255));
-          break;
-        case 1:
-          pixels.setPixelColor(2, BUTTON_COLOR);
-          pixels.setPixelColor(19, pixels.Color(255, 255, 255));
-          pixels.setPixelColor(21, pixels.Color(255, 255, 255));
-          break;
-        case 2:
-          pixels.setPixelColor(1, BUTTON_COLOR);
-          pixels.setPixelColor(22, pixels.Color(255, 255, 255));
-          pixels.setPixelColor(24, pixels.Color(255, 255, 255));
-          break;
-        case 3:
-          pixels.setPixelColor(0, BUTTON_COLOR);
-          pixels.setPixelColor(25, pixels.Color(255, 255, 255));
-          pixels.setPixelColor(27, pixels.Color(255, 255, 255));
-      default:
-        break;
-      }
-    }
-    else  {
-      switch(i){
-        case 0:
-          pixels.setPixelColor(3, pixels.Color(0, 0, 0));
-          pixels.setPixelColor(16, pixels.Color(0, 0, 0));
-          pixels.setPixelColor(18, pixels.Color(0, 0, 0));
-          break;
-        case 1:
-          pixels.setPixelColor(2, pixels.Color(0, 0, 0));
-          pixels.setPixelColor(19, pixels.Color(0, 0, 0));
-          pixels.setPixelColor(21, pixels.Color(0, 0, 0));
-          break;
-        case 2:
-          pixels.setPixelColor(1, pixels.Color(0, 0, 0));
-          pixels.setPixelColor(22, pixels.Color(0, 0, 0));
-          pixels.setPixelColor(24, pixels.Color(0, 0, 0));
-          break;
-        case 3:
-          pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-          pixels.setPixelColor(25, pixels.Color(0, 0, 0));
-          pixels.setPixelColor(27, pixels.Color(0, 0, 0));
-      default:
-        break;
-      }
-    }
-  }
-  pixels.show();   // Send the updated pixel colors to the hardware.
-}
-
-
-
-void updateButtons()
-{
-  static long lastUpdate = millis();
-  static bool buttonState[4] = {0,0,0,0};
-
-  if(millis()-lastUpdate > BUTTON_UPDATE_RATE)
-  {
-    for (int i = 0; i < 4; i++)
-    {
-      int val = !TCA.read1(i);
-
-      if(val != buttonState[3-i]){
-        if(val){
-          // Button just pressed
-          debug("Button ");
-          debug(3-i);
-          debugln(" just pressed");
-          trackIsOn[3-i] = !trackIsOn[3-i];
-          updateLEDs();
-        }
-        else {
-          debug("Button ");
-          debug(3-i);
-          debugln(" just released");
-        }
-        buttonState[3-i] = val;
-      }
-    }
-    lastUpdate = millis();
-  }
-}
-
-
-
-void stopMotor()
-{
-  motorIsOn = false;
-  targetMotorSpeed = 0;
-  //analogWrite(MOTOR_PWM_PIN, 0);
-  pwm_set_gpio_level(MOTOR_PWM_PIN, 0);
-  encoder.setEncoderPosition(0);
-  display.print(targetMotorSpeed);
-  display.writeDisplay();
-}
-
-
-
-void startMotor()
-{
-  motorIsOn = true;
-  targetMotorSpeed = motorMinSpeed;
-  //analogWrite(MOTOR_PWM_PIN, 180);
-  pwm_set_gpio_level(MOTOR_PWM_PIN, 200);
-  currentMotorSpeed = 200;
-  motorJustStarted = true;
-  encoder.setEncoderPosition(motorMinSpeed);
-  display.print(1);
-  display.writeDisplay();
-}
-
-
-
-void updateMotor()
-{
-  static long lastUpdate = millis();
-
-  if(millis()-lastUpdate > MOTOR_UPDATE_RATE)
-  {
-    if(!motorIsOn){  // MOTOR is OFF
-      if(currentMotorSpeed != 0){
-        currentMotorSpeed = 0;
-        //analogWrite(MOTOR_PWM_PIN, 0);
-        pwm_set_gpio_level(MOTOR_PWM_PIN, 0);
-        debug("Motor Speed: "); debugln(currentMotorSpeed);
-      }
-    } 
-    else {
-      if(currentMotorSpeed != targetMotorSpeed){
-        if(currentMotorSpeed < targetMotorSpeed){
-          if((targetMotorSpeed - currentMotorSpeed) > 3){
-            currentMotorSpeed = currentMotorSpeed+3;
-            debug("Motor Speed: "); debugln(currentMotorSpeed);
-          } 
-          else {
-            currentMotorSpeed = targetMotorSpeed;
-            debug("Motor Speed: "); debugln(currentMotorSpeed);
-          }
-        }
-        else if(motorJustStarted) {
-          // wait a bit and then slow down
-          if((currentMotorSpeed - targetMotorSpeed) > 6){
-            currentMotorSpeed = currentMotorSpeed-6;
-            debug("Motor Speed: "); debugln(currentMotorSpeed);
-          } else {
-            currentMotorSpeed = targetMotorSpeed;
-            motorJustStarted = false;
-            debug("Motor Speed: "); debugln(currentMotorSpeed);
-          }
-        }
-        else {
-            currentMotorSpeed = targetMotorSpeed;
-            debug("Motor Speed: "); debugln(currentMotorSpeed);
-        }
-      }
-      //analogWrite(MOTOR_PWM_PIN, currentMotorSpeed);
-      pwm_set_gpio_level(MOTOR_PWM_PIN, currentMotorSpeed);
-    }
-    lastUpdate = millis();
-  }
-}
 
 
 
@@ -721,6 +501,7 @@ void sendNoteOn(uint8_t pitch=64, uint8_t velocity=88, uint8_t channel = 1)
   MIDI_USB.sendNoteOn(pitch, velocity, channel);
   MIDI.sendNoteOn(pitch, velocity, channel);
 }
+
 
 void sendNoteOff(uint8_t pitch=64, uint8_t channel = 1)
 {
@@ -732,61 +513,53 @@ void sendNoteOff(uint8_t pitch=64, uint8_t channel = 1)
 
 
 
-void updateHallSensors()
+
+bool readHallSensor(uint8_t track)
 {
-  readHallSensorX(0);
-  readHallSensorX(1);
-  readHallSensorX(2);
-  readHallSensorX(3);
-}
-
-
-bool readHallSensorX(uint8_t track)
-{
-  static int lastNote[4] = {-1,-1,-1,-1};
-
   // Check if pin 4 is pulled low (magnet event)
   if (isHallSensorHigh(track)) {
-    if(!hallSensorState[track]) {
+    if(!hallSensorState[track]) { //Sensor state was not High before
       hallSensorState[track] = true;
       
-      if(trackIsOn[track]) {
-
-        debug("Magnet Detected T"); debugln(track);
-
-        uint8_t note;
-        if(VEML_TRIGGER_MODE) note = detect_color_TriggerMode(track);
-        else note = detect_color_fromHue(track);
+      if(trackIsOn[track]) 
+      {
+        debug("Magnet T"); debugln(track);
 
         turnGateOnOff(track, true);
 
-        if(lastNote[track] != -1) {
-          sendNoteOff(lastNote[track]);
-          lastNote[track] = -1;
-        }
-        if(note>=0) { 
-          sendNoteOn(midiNotes[track][note]);
-          if(currentCVMode == 0) playCV_MIDI_Pitch(track, cvNotes[track][note]);
-          lastNote[track] = midiNotes[track][note];
-        };
-      } else {
+        // SET Color Sensor to Trigger Mode 
+        selectColorSensor(track, true);
+        RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
+        selectColorSensor(track, false);
+        sensorReadOutTime[track]=millis()+42;   // delay window of 42ms for measurements
+      
+      } 
+      else {
+        /*
         if(lastNote[track] != -1) {
           sendNoteOff(lastNote[track]);
           turnGateOnOff(track, false);
           lastNote[track] = -1;
         }
+        */
       }
-
     }
     return true;
   } else if(hallSensorState[track]){
     hallSensorState[track] = false;
     if(trackIsOn[track]) {
+
+      // Turn Gate Off
       turnGateOnOff(track, false);
+
+      // Send MIDI Note Off
+      /*
       if(lastNote[track] != -1) {
         sendNoteOff(lastNote[track]);
         lastNote[track] = -1;
       }
+      */
+
     }
     return false;
   }
@@ -795,74 +568,7 @@ bool readHallSensorX(uint8_t track)
 
 
 
-bool isHallSensorHigh(uint8_t track)
-{
-  switch (track){
-    case 0:
-      if(bitRead(pixel1.readInterrupts(),0) == HIGH) return true;
-      else return false;
-    case 1:
-      if(bitRead(pixel2.readInterrupts(),0) == HIGH) return true;
-      else return false;  
-    case 2:
-      if(bitRead(pixel3.readInterrupts(),0) == HIGH) return true;
-      else return false;
-    case 3:
-      if(bitRead(pixel4.readInterrupts(),0) == HIGH) return true;
-      else return false; 
-    default:
-      break;
-  } 
-  return false;
-}
 
-
-
-
-
-
-hsv rgb2hsv(rgb in)
-{
-    hsv         out;
-    double      min, max, delta;
-
-    min = in.r < in.g ? in.r : in.g;
-    min = min  < in.b ? min  : in.b;
-    max = in.r > in.g ? in.r : in.g;
-    max = max  > in.b ? max  : in.b;
-
-    out.v = max;                                // v
-    delta = max - min;
-    if (delta < 0.00001)
-    {
-        out.s = 0;
-        out.h = 0; // undefined, maybe nan?
-        return out;
-    }
-    if( max > 0.0 ) { // NOTE: if Max is == 0, this divide would cause a crash
-        out.s = (delta / max);                  // s
-    } else {
-        // if max is 0, then r = g = b = 0              
-        // s = 0, h is undefined
-        out.s = 0.0;
-        out.h = 0.0;                            // its now undefined
-        return out;
-    }
-    if( in.r >= max )                           // > is bogus, just keeps compilor happy
-        out.h = ( in.g - in.b ) / delta;        // between yellow & magenta
-    else
-    if( in.g >= max )
-        out.h = 2.0 + ( in.b - in.r ) / delta;  // between cyan & yellow
-    else
-        out.h = 4.0 + ( in.r - in.g ) / delta;  // between magenta & cyan
-
-    out.h *= 60.0;                              // degrees
-
-    if( out.h < 0.0 )
-        out.h += 360.0;
-
-    return out;
-}
 
 
 
@@ -872,136 +578,25 @@ hsv rgb2hsv(rgb in)
 
 void updateColorSensor(uint8_t track) 
 {
-  
-  if(track == 0) pixel1.setChannel(0);
-  else if(track == 1) pixel2.setChannel(0);
-  else if(track == 2) pixel3.setChannel(0);
-  else if(track == 3) pixel4.setChannel(0);
+  if(sensorReadOutTime[track] == -1)        // we are not in Trigger Mode
+  {
+    readColorSensor(track);
+  } 
+  else if(sensorReadOutTime[track] != -1){  // we are in trigger mode and 
+    if (sensorReadOutTime[track] <= millis()){
+      // we waited long enough, doing measurement now
+      sensorReadOutTime[track] = -1;
+      readColorSensor(track);
 
-  if(VEML_TRIGGER_MODE) {
-    RGBWSensor.setConfiguration(VEML6040_IT_40MS + VEML6040_TRIG_ENABLE + VEML6040_AF_FORCE + VEML6040_SD_ENABLE);
-    delay(42);
-    sensorReadOutTime[track]=millis()+42;
-  }
+      ////////////////////////////////////
+      playNoteOn(track);
+      ////////////////////////////////////
 
-  rgb_color.r = RGBWSensor.getRed() / 16496.0;
-  rgb_color.g = RGBWSensor.getGreen() / 16496.0;
-  rgb_color.b = RGBWSensor.getBlue() / 16496.0;
-  hsv_color = rgb2hsv(rgb_color);
-
-
-  if(hsv_color.h != lastMeasuredHue[track]) {
-    lastMeasuredHue[track]=hsv_color.h;
-    // Set CV per Track to Hue Value in CV Colour MODE
-    if(currentCVMode == 1)      setCV(track, map(hsv_color.h, 0, 390, 0, 4095));
-  }
-
-/*
-  debug("Colour: ");
-  debug("R: ");
-  debug(RGBWSensor.getRed());  
-  debug(" G: ");
-  debug(RGBWSensor.getGreen());  
-  debug(" B: ");
-  debug(RGBWSensor.getBlue());  
-  debug(" W: ");
-  debug(RGBWSensor.getWhite()); 
-  debug(" CCT: ");
-  debugln(RGBWSensor.getCCT());  
-  //debug(" AL: ");
-  //debugln(RGBWSensor.getAmbientLight()); 
-  debug("hue: "), debug(hsv_color.h);
-  debug(" sat: "), debug(hsv_color.s);
-  debug(" val: "), debugln(hsv_color.v);
-*/
-
-  // set back to other channel so we can read other sensors with same address
-  if(track == 0) pixel1.setChannel(1);
-  else if(track == 1) pixel2.setChannel(1);
-  else if(track == 2) pixel3.setChannel(1);
-  else if(track == 3) pixel4.setChannel(1);
-}
-
-
-int detect_color_fromHue(uint8_t track) 
-{
-  int color_detected = -1;
-    if(lastMeasuredHue[track] > START_HUE_MAGENTA || lastMeasuredHue[track] < START_HUE_RED){
-      debug("MAGENTA");
-      color_detected =  3;
-    } else if(lastMeasuredHue[track] >= START_HUE_RED && lastMeasuredHue[track] < START_HUE_YELLOW){
-      debug("RED");
-      color_detected =  0;
-    } else if(lastMeasuredHue[track] >= START_HUE_YELLOW && lastMeasuredHue[track] < START_HUE_BLUE){
-      debug("YELLOW");
-      color_detected =  1;
-    } else  {
-      debug("BLUE");
-      color_detected =  2;
+      setColorSensorAutoMode(track);
+    } else {
+      // we wait for 40ms sensor window and do nothing
     }
-  debug(" - Hue: ");
-  debugln(lastMeasuredHue[track]);
-
-  return color_detected;  //-> if we dont play a note we send -1
-}
-
-
-
-
-int detect_color_TriggerMode(uint8_t track) 
-{
-  updateColorSensor(track);
-  return (detect_color_fromHue(track));  //-> if we dont play a note we send -1
-}
-
-
-void turnGateOnOff(uint8_t track, bool onf){
-  switch(track){
-    case 0:
-      digitalWrite(GATE1_PIN, onf);
-      break;
-    case 1:
-      digitalWrite(GATE2_PIN, onf);
-      break;
-    case 2:
-      digitalWrite(GATE3_PIN, onf);
-      break;
-    case 3:
-      digitalWrite(GATE4_PIN, onf);
-      break;          
-    default:
-      break;
-  }
-}
-
-
-void setCV(uint8_t _track, int _cvVal)
-{
-  if(_cvVal>=0 && _cvVal<= 4095){
-    switch (_track){
-      case 0:
-        mcp.setChannelValue(MCP4728_CHANNEL_A, _cvVal);
-        break;
-      case 1:
-        mcp.setChannelValue(MCP4728_CHANNEL_B, _cvVal);
-        break;
-      case 2:
-        mcp.setChannelValue(MCP4728_CHANNEL_C, _cvVal);
-        break;
-      case 3:
-        mcp.setChannelValue(MCP4728_CHANNEL_D, _cvVal);
-        break;
-      default:
-        break;
-    }
-  }
-}
-
-void playCV_MIDI_Pitch(uint8_t _track, uint8_t _note)
-{
-  if(_note>=10 && _note<=70){
-    setCV(_track, dac_PitchValues[_note-10]); // dac_values[6] = C4 -> input 16
-  }
+  } 
 }
 
 
@@ -1010,129 +605,117 @@ void playCV_MIDI_Pitch(uint8_t _track, uint8_t _note)
 //////////////////////////////////////////////////////////////////////////////
 
 
+typedef struct{
+    uint8_t pitch;          // MIDI note/pitch
+    uint32_t end_time;      // time when note off will be send
+    uint8_t channel;        // MIDI Channel?
+} NoteStruct_t;
 
-void saveSettings()
-{
-  int addr = 0;
-  int val = 0;
 
-  // Write Version
-  addr = 222;
-  val = (int)(VERSION_NUMBER);
-  EEPROM.write(addr, val);
-  addr++;
 
-  // Write MIDI Notes
-  for (int t=0; t<4; t++){
-    for (int p=0; p<4; p++){
-      val = midiNotes[t][p];
-      EEPROM.write(addr, val);
-      addr++;
-    }
-  }
+#define MAX_QUEUE_SIZE 25
+NoteStruct_t notes[MAX_QUEUE_SIZE];
+uint8_t activeNotes = 0;
 
-  // Write CV Notes
-  for (int t=0; t<4; t++){
-    for (int p=0; p<4; p++){
-      val = cvNotes[t][p];
-      EEPROM.write(addr, val);
-      addr++;
-    }
-  }
 
-  // Write CV Mode
-  val = currentCVMode;
-  EEPROM.write(addr, val);
-  addr++;
+int isQueueFull() {
+  if (activeNotes >= (MAX_QUEUE_SIZE-1)) return 1;
+  else return 0;
+}
 
-  // write Motor Settings
-  val = motorMinSpeed;
-  EEPROM.write(addr, val);
-  addr++;
-
-  val = motorMaxSpeed;
-  EEPROM.write(addr, val);
-  addr++;
-  
-  if (EEPROM.commit()) {
-    Serial.println("EEPROM successfully committed");
-  } else {
-    Serial.println("ERROR! EEPROM commit failed");
-  }
-
-  debugln("Wrote new Settings File ");  
+int isQueueEmpty() {
+  if (activeNotes == 0) return 1;
+  else return 0;
 }
 
 
 
 
-void loadSettings()
+void deleteNoteAtIndex(uint8_t _index) 
 {
-  int addr = 222;
-  int val = EEPROM.read(addr);
-  addr++;
+  if (!isQueueEmpty()) 
+  {
+    // send Note Off
+    sendNoteOff(notes[_index].pitch); //, notes[_index].channel);
+    activeNotes = activeNotes-1;
 
-  if(val == VERSION_NUMBER){
-    debug("Memory contains current Version number: ");
-    debugln(val);
-
-    // Read MIDI Notes
-    debug("Midi Notes: ");
-    for (int t=0; t<4; t++){
-      for (int p=0; p<4; p++){
-        val = EEPROM.read(addr);
-        if(val>=0 && val<=127) {
-          midiNotes[t][p] = val;
-          debug(val); debug(" ");
-        }
-        addr++;
-      }
-    }
-    debugln("");
-
-    // Read CV Notes
-    debug("CV Notes: ");
-    for (int t=0; t<4; t++){
-      for (int p=0; p<4; p++){
-        val = EEPROM.read(addr);
-        if(val>=10 && val<=70) {
-          cvNotes[t][p] = val;
-          debug(val); debug(" ");
-        }
-        addr++;
-      }
-    }
-    debugln("");
-
-    // Read CV Mode
-    val = currentCVMode;
-    val = EEPROM.read(addr);
-    if(val>=0 && val<=127) {
-      currentCVMode = val;
-      debug("Current CV Mode: "); debugln(val);
-
-    }
-    addr++;
-
-    // read Motor Settings
-    val =  EEPROM.read(addr);
-    if(val>= 50 && val<=130){
-      motorMinSpeed = val;
-      debug("motorMinSpeed: "); debugln(val);
-    }
-    addr++;
-
-    val =  EEPROM.read(addr);
-    if(val>= 130 && val<=255){
-      motorMaxSpeed = val;
-      debug("motorMaxSpeed: "); debugln(val);
-    }
-    addr++;
-
-  } else {
-    debug("Memory doesnt contain currention Version Number: ");
-    debug(val);
-    debugln(" , writing New Memory");
-    saveSettings();
+    //debug2("%u | ", millis());
+    //printf("Note deleted: pitch=%d, end_time=%d, channel=%d, Index:%d, ActiveNotes:%d\n", last_note.pitch, last_note.end_time, last_note.channel, _index, activeNotes);
+    notes[_index].end_time = 0;
   }
+}
+
+
+
+
+void updateNoteOffQueue() 
+{
+  if (isQueueEmpty()) {
+    //debug("MIDI queue is empty \n");
+  } else {
+    uint8_t checkedNotes = 0;
+    for(int i=0; i<MAX_QUEUE_SIZE; i++){
+      if(notes[i].end_time != 0){   // Index is not used
+        if (millis() >= (notes[i].end_time)) deleteNoteAtIndex(i);
+        checkedNotes++;
+        if(checkedNotes == activeNotes) return;
+      }
+    }
+  }
+}
+
+
+
+void addNoteToMIDIQueue(uint8_t pitch, uint32_t end_time, uint8_t channel=1) 
+{
+  if (isQueueFull()) {
+    debug("MIDI queue is full\n");
+  }
+  else {
+
+    uint8_t newIndex = returnFreeQueueIndex();
+    notes[newIndex].pitch = pitch;
+    notes[newIndex].end_time = end_time;
+    notes[newIndex].channel = channel;
+    activeNotes = activeNotes+1;
+
+    //uint8_t note_on[3] = {0x90 | notes[newIndex].channel, notes[newIndex].pitch, 127};
+    //tud_midi_stream_write(cable_num, note_on, 3);
+
+    //uint32_t current_time_ms = to_ms_since_boot(get_absolute_time());
+    //printf("\n%u | ", current_time_ms);
+    //printf("Note added: pitch=%d, end_time=%d, channel=%d, to Index:%d, active Notes:%d\n", pitch, end_time, channel, newIndex, activeNotes);
+  }
+}
+
+
+int returnFreeQueueIndex()
+{
+  if(isQueueFull()){
+    return -1;
+  }
+  else if (isQueueEmpty()){
+    return 0;
+  } 
+  else {
+    for(int index=0; index<MAX_QUEUE_SIZE; index++)
+    {
+      if ((notes[index].end_time) == 0) // Index is not in use
+      {
+        return index;
+      }
+    }
+  }
+  return -1;
+}
+
+
+
+void playNoteOn(uint8_t track)
+{
+    uint8_t note;
+    note = detect_color_fromHue(track);
+    sendNoteOn(midiNotes[track][note]);
+    addNoteToMIDIQueue(midiNotes[track][note], (millis()+ MIDI_NOTE_LENGTH));
+    if(currentCVMode == 0) playCV_Note(track, cvNotes[track][note]);
 }
