@@ -21,7 +21,7 @@ void updateEncoder()
   if (encoder_position != new_position && new_position >= motorMinSpeed && new_position <= motorMaxSpeed) {
     debugln(new_position);         // display new position
     encoder_position = new_position;      // and save for next round
-    display.print(encoder_position-motorMinSpeed+1);
+    display.print((encoder_position-motorMinSpeed+1)*2);
     display.writeDisplay();
   } else if (new_position < motorMinSpeed){
     encoder_position = motorMinSpeed;

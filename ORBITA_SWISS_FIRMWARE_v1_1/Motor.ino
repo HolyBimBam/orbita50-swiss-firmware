@@ -20,7 +20,7 @@ void stopMotor()
   //analogWrite(MOTOR_PWM_PIN, 0);
   pwm_set_gpio_level(MOTOR_PWM_PIN, 0);
   encoder.setEncoderPosition(0);
-  display.print(targetMotorSpeed);
+  display.print(targetMotorSpeed*2);
   display.writeDisplay();
 }
 
@@ -35,7 +35,7 @@ void startMotor()
   currentMotorSpeed = 200;
   motorJustStarted = true;
   encoder.setEncoderPosition(motorMinSpeed);
-  display.print(1);
+  display.print(2);
   display.writeDisplay();
 }
 
