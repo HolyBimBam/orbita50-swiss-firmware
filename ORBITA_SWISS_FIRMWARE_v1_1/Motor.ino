@@ -34,7 +34,7 @@ void startMotor()
   pwm_set_gpio_level(MOTOR_PWM_PIN, 200);
   currentMotorSpeed = 200;
   motorJustStarted = true;
-  encoder.setEncoderPosition(motorMinSpeed);
+  encoder.setEncoderPosition(-1*motorMinSpeed);
   display.print(2);
   display.writeDisplay();
 }

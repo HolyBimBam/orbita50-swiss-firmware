@@ -16,7 +16,8 @@ void updateEncoder()
       enc_ButtonState = false;
   }
 
-  int32_t new_position = encoder.getEncoderPosition();
+  int32_t new_position = -1* encoder.getEncoderPosition();
+
   // did we move arounde?
   if (encoder_position != new_position && new_position >= motorMinSpeed && new_position <= motorMaxSpeed) {
     debugln(new_position);         // display new position
@@ -25,10 +26,10 @@ void updateEncoder()
     display.writeDisplay();
   } else if (new_position < motorMinSpeed){
     encoder_position = motorMinSpeed;
-    encoder.setEncoderPosition(encoder_position);
+    encoder.setEncoderPosition(-1*encoder_position);
   } else if(new_position > motorMaxSpeed){
     encoder_position = motorMaxSpeed;
-    encoder.setEncoderPosition(encoder_position);
+    encoder.setEncoderPosition(-1*encoder_position);
   }
 
   targetMotorSpeed = encoder_position;

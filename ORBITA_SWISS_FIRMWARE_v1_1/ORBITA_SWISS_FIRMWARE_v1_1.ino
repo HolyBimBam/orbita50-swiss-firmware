@@ -29,7 +29,7 @@
 /////// SETTINGS ///////////////////////////
 
 #define VERSION_NUMBER 11
-#define DEBUG 1
+#define DEBUG 0
 
 //#define VEML_TRIGGER_MODE 1
 
@@ -39,8 +39,8 @@
 #define BUTTON_UPDATE_RATE 40
 #define MOTOR_UPDATE_RATE 400   // for now to prevent too quick changes
 
-#define MIN_MOTOR_SPEED 144
-#define MAX_MOTOR_SPEED 193
+#define MIN_MOTOR_SPEED 146
+#define MAX_MOTOR_SPEED 195
 
 
 #define START_HUE_RED     10 
